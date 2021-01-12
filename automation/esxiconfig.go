@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"io/ioutil"
@@ -29,7 +29,7 @@ type DeployProps struct {
 	FlavorName string `yaml:"flavor"`
 }
 
-func GetEsxiConfig(filePath string) (cfg EsxiConfig, err error) {
+func ReadEsxiConfig(filePath string) (cfg EsxiConfig, err error) {
 	yamlBytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return

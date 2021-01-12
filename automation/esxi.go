@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"context"
@@ -14,9 +14,9 @@ type EsxiStack struct {
 	config EsxiConfig
 }
 
-func initEsxiStack(ctx context.Context, config EsxiConfig) EsxiStack {
+func InitEsxiStack(ctx context.Context, config EsxiConfig) EsxiStack {
 	stackName := config.Node.Name
-	workDir := filepath.Join("..", "projects", "esxi")
+	workDir := filepath.Join(".", "projects", "esxi")
 
 	s, err := auto.UpsertStackLocalSource(ctx, stackName, workDir)
 	if err != nil {

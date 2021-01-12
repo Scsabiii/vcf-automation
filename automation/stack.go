@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"context"
@@ -19,7 +19,7 @@ type Stack interface {
 	Up(context.Context, ...optup.Option) (auto.UpResult, error)
 }
 
-func runStack(ctx context.Context, stack Stack, destroy bool) {
+func RunStack(ctx context.Context, stack Stack, destroy bool) {
 	stack.Config(ctx)
 
 	fmt.Println("Successfully set config")

@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"context"
@@ -13,8 +13,8 @@ type ExampleStack struct {
 	*auto.Stack
 }
 
-func initExampleStack(ctx context.Context, stackName string) ExampleStack {
-	workDir := filepath.Join("..", "projects", "example-go")
+func InitExampleStack(ctx context.Context, stackName string) ExampleStack {
+	workDir := filepath.Join("projects", "example-go")
 
 	s, err := auto.UpsertStackLocalSource(ctx, stackName, workDir)
 	if err != nil {
