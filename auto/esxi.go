@@ -17,6 +17,8 @@ type EsxiStack struct {
 func InitEsxiStack(ctx context.Context, cfg Config) EsxiStack {
 	workDir := filepath.Join(".", "projects", "esxi")
 
+	fmt.Printf("Use project %q\n", workDir)
+
 	s, err := auto.UpsertStackLocalSource(ctx, cfg.Stack, workDir)
 	if err != nil {
 		fmt.Printf("Failed to create or select stack: %v\n", err)

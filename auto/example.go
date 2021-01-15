@@ -17,6 +17,8 @@ type ExampleStack struct {
 func InitExampleStack(ctx context.Context, cfg Config) ExampleStack {
 	workDir := filepath.Join("projects", "example-go")
 
+	fmt.Printf("Use project %q\n", workDir)
+
 	s, err := auto.UpsertStackLocalSource(ctx, cfg.Stack, workDir)
 	if err != nil {
 		fmt.Printf("Failed to create or select stack: %v\n", err)

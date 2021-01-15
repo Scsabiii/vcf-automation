@@ -16,39 +16,16 @@ import (
 var (
 	destroy bool
 	outputs bool
+	stack   auto.Stack
 )
 
 var deployCmd = &cobra.Command{
-	Use:   "deploy [config]",
+	Use:   "deploy [cfgFileName]",
 	Short: "Provision CCI using config file (without .yaml suffix)",
 	Long:  `Provision CCI project (installing ESXi nodes)`,
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		var stack auto.Stack
-		ctx := context.Background()
-
-		cfgName := args[0]
-		cfg := readConfig(cfgName)
-
-		// Initial pulumi stack
-		switch cfg.Type {
-		case auto.DeployExample:
-			cfg.Stack = "dev"
-			stack = auto.InitExampleStack(ctx, cfg)
-		case auto.DeployEsxi:
-			cfg.Stack = cfgName
-			stack = auto.InitEsxiStack(ctx, cfg)
-		case auto.DeployVCF:
-			cfg.Stack = cfgName
-			fmt.Println("Not implemented")
-			os.Exit(0)
-		}
-
-		if outputs {
-			auto.PrintOutputs(ctx, stack)
-		} else {
-			auto.RunStack(ctx, stack, destroy)
-		}
+		deploy(args[0])
 	},
 }
 
@@ -56,6 +33,34 @@ func init() {
 	rootCmd.AddCommand(deployCmd)
 	deployCmd.Flags().BoolVarP(&destroy, "destory", "d", false, "Destory stack")
 	deployCmd.Flags().BoolVarP(&outputs, "outputs", "o", false, "Outputs of stack")
+}
+
+func deploy(cfgName string) {
+	ctx := context.Background()
+	cfg := readConfig(cfgName)
+
+	// Initial pulumi stack
+	switch cfg.Type {
+	case auto.DeployExample:
+		cfg.Stack = "dev"
+		stack = auto.InitExampleStack(ctx, cfg)
+	case auto.DeployEsxi:
+		cfg.Stack = cfgName
+		stack = auto.InitEsxiStack(ctx, cfg)
+	case auto.DeployVCF:
+		cfg.Stack = cfgName
+		fmt.Println("Not implemented")
+		os.Exit(0)
+	}
+
+	if outputs {
+		fmt.Println()
+		fmt.Println("Outputs")
+		fmt.Println("-------")
+		auto.PrintOutputs(ctx, stack)
+	} else {
+		auto.RunStack(ctx, stack, destroy)
+	}
 }
 
 func readConfig(cfgName string) auto.Config {
