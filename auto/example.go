@@ -1,4 +1,4 @@
-package automation
+package auto
 
 import (
 	"context"
@@ -11,29 +11,31 @@ import (
 
 type ExampleStack struct {
 	*auto.Stack
+	config Config
 }
 
-func InitExampleStack(ctx context.Context, stackName string) ExampleStack {
+func InitExampleStack(ctx context.Context, cfg Config) ExampleStack {
 	workDir := filepath.Join("projects", "example-go")
 
-	s, err := auto.UpsertStackLocalSource(ctx, stackName, workDir)
+	s, err := auto.UpsertStackLocalSource(ctx, cfg.Stack, workDir)
 	if err != nil {
 		fmt.Printf("Failed to create or select stack: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Created/Selected stack %q\n", stackName)
-	return ExampleStack{&s}
+	fmt.Printf("Created/Selected stack %q\n", cfg.Stack)
+	return ExampleStack{&s, cfg}
 }
 
 // Config set stack configuration
 func (s ExampleStack) Config(ctx context.Context) error {
-	osRegion := "qa-de-1"
-	osAuthURL := "https://identity-3.qa-de-1.cloud.sap/v3"
-	osProjectDomainName := "monsoon3"
-	osProjectName := "d067954"
-	osUserName := "d067954"
-	osPassword := os.Getenv("OS_PASSWORD")
+	props := s.config.Props
+	osRegion := props.Region
+	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", osRegion)
+	osProjectDomainName := props.Domain
+	osProjectName := props.Project
+	osUserName := props.UserName
+	osPassword := props.Password
 	s.SetConfig(ctx, "openstack:region", auto.ConfigValue{Value: osRegion})
 	s.SetConfig(ctx, "openstack:authUrl", auto.ConfigValue{Value: osAuthURL})
 	s.SetConfig(ctx, "openstack:projectDomainName", auto.ConfigValue{Value: osProjectDomainName})
@@ -42,19 +44,5 @@ func (s ExampleStack) Config(ctx context.Context) error {
 	s.SetConfig(ctx, "openstack:userName", auto.ConfigValue{Value: osUserName})
 	s.SetConfig(ctx, "openstack:password", auto.ConfigValue{Value: osPassword, Secret: true})
 	s.SetConfig(ctx, "openstack:insecure", auto.ConfigValue{Value: "true"})
-	return nil
-}
-
-//
-func (e ExampleStack) Output(res auto.UpResult) error {
-	// get the instance IP from the stack outputs
-	instanceIP, ok := res.Outputs["instanceIP"].Value.(string)
-	if !ok {
-		fmt.Println("Failed to unmarshall output URL")
-		os.Exit(1)
-	}
-
-	fmt.Println("Output:")
-	fmt.Printf("InstanceIP: %s\n", instanceIP)
 	return nil
 }

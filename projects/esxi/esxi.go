@@ -8,12 +8,20 @@ import (
 	"github.com/pulumi/pulumi/sdk/v2/go/pulumi"
 )
 
-func newInstance(ctx *pulumi.Context, floavor, image, nodeUUID string) error {
+type Provision struct {
+	Network  *networking.Network
+	Subnet   *networking.Subnet
+	Port     *networking.Port
+	SecGroup *compute.SecGroup
+	Instance *compute.Instance
+}
+
+func newInstance(ctx *pulumi.Context, floavor, image, nodeUUID string) (*Provision, error) {
 	network1, err := networking.NewNetwork(ctx, "network-esxi", &networking.NetworkArgs{
 		AdminStateUp: pulumi.Bool(true),
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	subnet1, err := networking.NewSubnet(ctx, "subnet-esxi", &networking.SubnetArgs{
 		Cidr:      pulumi.String("192.168.199.0/24"),
@@ -21,7 +29,7 @@ func newInstance(ctx *pulumi.Context, floavor, image, nodeUUID string) error {
 		NetworkId: network1.ID(),
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	secgroup1, err := compute.NewSecGroup(ctx, "sg-esxi", &compute.SecGroupArgs{
 		Description: pulumi.String("cci esxi security group"),
@@ -47,7 +55,7 @@ func newInstance(ctx *pulumi.Context, floavor, image, nodeUUID string) error {
 		},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	port1, err := networking.NewPort(ctx, "port1", &networking.PortArgs{
 		AdminStateUp: pulumi.Bool(true),
@@ -63,9 +71,9 @@ func newInstance(ctx *pulumi.Context, floavor, image, nodeUUID string) error {
 		},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = compute.NewInstance(ctx, "instance1", &compute.InstanceArgs{
+	instance1, err := compute.NewInstance(ctx, "instance1", &compute.InstanceArgs{
 		FlavorName:            pulumi.String(floavor),
 		ImageName:             pulumi.String(image),
 		AvailabilityZoneHints: pulumi.String(fmt.Sprintf("::%s", nodeUUID)),
@@ -79,9 +87,15 @@ func newInstance(ctx *pulumi.Context, floavor, image, nodeUUID string) error {
 		},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	p := Provision{
+		Network:  network1,
+		Subnet:   subnet1,
+		Port:     port1,
+		Instance: instance1,
+	}
+	return &p, nil
 }
 
 func newSecGroup(ctx *pulumi.Context) (*compute.SecGroup, error) {

@@ -22,7 +22,7 @@ func main() {
 		}
 
 		// Export the IP of the instance
-		ctx.Export("instanceIP", instance.AccessIpV4)
+		ctx.Export("InstanceIP", instance.AccessIpV4)
 		return nil
 	})
 }

@@ -1,4 +1,4 @@
-package automation
+package auto
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 
 type Stack interface {
 	Config(context.Context) error
-	Output(auto.UpResult) error
+	Outputs(context.Context) (auto.OutputMap, error)
 	Refresh(context.Context, ...optrefresh.Option) (auto.RefreshResult, error)
 	Destroy(context.Context, ...optdestroy.Option) (auto.DestroyResult, error)
 	Up(context.Context, ...optup.Option) (auto.UpResult, error)
@@ -60,5 +60,25 @@ func RunStack(ctx context.Context, stack Stack, destroy bool) {
 
 	fmt.Println("Update succeeded!")
 
-	stack.Output(res)
+	printOutputs(res.Outputs)
+}
+
+func printOutputs(outs auto.OutputMap) {
+	var value string
+	for key, v := range outs {
+		if vv, ok := v.Value.(string); ok {
+			value = vv
+		} else {
+			value = ""
+		}
+		fmt.Printf("%s:\t\t%s\n", key, value)
+	}
+}
+
+func PrintOutputs(ctx context.Context, stack Stack) {
+	outs, err := stack.Outputs(ctx)
+	if err != nil {
+		fmt.Printf("PrintOutputs: %v\n", err)
+	}
+	printOutputs(outs)
 }
