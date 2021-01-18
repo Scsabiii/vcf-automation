@@ -72,6 +72,8 @@ func printOutputs(outs auto.OutputMap) {
 			value = v
 		case int:
 			value = strconv.Itoa(v)
+		case int64:
+			value = fmt.Sprintf("%d", v)
 		default:
 			value = ""
 		}

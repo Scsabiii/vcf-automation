@@ -36,12 +36,15 @@ type Share struct {
 }
 
 type DeployProps struct {
-	Region   string `yaml:"region"`
-	Domain   string `yaml:"domain"`
-	Project  string `yaml:"project"`
-	UserName string `yaml:"user"`
-	Prefix   string `yaml:"resourcePrefix"`
-	Password string
+	Region           string `yaml:"region"`
+	Domain           string `yaml:"domain"`
+	Project          string `yaml:"project"`
+	UserName         string `yaml:"user"`
+	Prefix           string `yaml:"resourcePrefix"`
+	NodeSubnet       string `yaml:"nodeSubnet"`
+	StorageSubnet    string `yaml:"storageSubnet"`
+	ShareNetworkName string `yaml:"shareNetworkName"`
+	Password         string
 }
 
 func ReadConfig(path string) (cfg Config, err error) {

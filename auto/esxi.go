@@ -33,12 +33,6 @@ func InitEsxiStack(ctx context.Context, cfg Config) EsxiStack {
 
 // Config stack
 func (s EsxiStack) Config(ctx context.Context) error {
-	// get node from config
-	if len(s.config.Nodes) != 1 {
-		return fmt.Errorf("Only one node is allowed, got %d instead", len(s.config.Nodes))
-	}
-	node := s.config.Nodes[0]
-
 	deployProps := s.config.Props
 	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", deployProps.Region)
 	osProjectDomainName := deployProps.Domain
@@ -57,13 +51,18 @@ func (s EsxiStack) Config(ctx context.Context) error {
 	s.SetConfig(ctx, "openstack:insecure", auto.ConfigValue{Value: "true"})
 
 	s.SetConfig(ctx, "resourcePrefix", auto.ConfigValue{Value: deployProps.Prefix})
+	s.SetConfig(ctx, "nodeSubnet", auto.ConfigValue{Value: deployProps.NodeSubnet})
+	s.SetConfig(ctx, "storageSubnet", auto.ConfigValue{Value: deployProps.StorageSubnet})
+	s.SetConfig(ctx, "shareNetworkUUID", auto.ConfigValue{Value: deployProps.ShareNetworkName})
 
 	// config instance
-	s.SetConfig(ctx, "imageName", auto.ConfigValue{Value: node.ImageName})
-	s.SetConfig(ctx, "flavorName", auto.ConfigValue{Value: node.FlavorName})
-	s.SetConfig(ctx, "nodeUUID", auto.ConfigValue{Value: node.UUID})
-	s.SetConfig(ctx, "nodeIP", auto.ConfigValue{Value: node.IP})
-
+	s.SetConfig(ctx, "numNodes", auto.ConfigValue{Value: strconv.Itoa(len(s.config.Nodes))})
+	for i, node := range s.config.Nodes {
+		s.SetConfig(ctx, fmt.Sprintf("node%02dImageName", i), auto.ConfigValue{Value: node.ImageName})
+		s.SetConfig(ctx, fmt.Sprintf("node%02dFlavorName", i), auto.ConfigValue{Value: node.FlavorName})
+		s.SetConfig(ctx, fmt.Sprintf("node%02dUUID", i), auto.ConfigValue{Value: node.UUID})
+		s.SetConfig(ctx, fmt.Sprintf("node%02dIP", i), auto.ConfigValue{Value: node.IP})
+	}
 	s.SetConfig(ctx, "numShares", auto.ConfigValue{Value: strconv.Itoa(len(s.config.Shares))})
 	for i, share := range s.config.Shares {
 		s.SetConfig(ctx, fmt.Sprintf("share%02dName", i), auto.ConfigValue{Value: share.Name})

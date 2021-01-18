@@ -22,9 +22,11 @@ type EsxiInstance struct {
 }
 
 type NodeProps struct {
+	ID     int
 	Image  string
 	Flavor string
 	UUID   string
+	IP     string
 }
 
 type ShareProps struct {
@@ -36,14 +38,11 @@ func newEsxiStack(ctx *pulumi.Context) error {
 	// Read stack configuration
 	conf := config.New(ctx, "")
 	prefix := conf.Get("resourcePrefix")
-	np := &NodeProps{
-		Image:  conf.Require("imageName"),
-		Flavor: conf.Require("flavorName"),
-		UUID:   conf.Require("nodeUUID"),
-	}
+	nodeSubent := conf.Get("nodeSubnet")
+	storageSubnet := conf.Get("storageSubnet")
 
 	// Create Instance
-	esxiNetwork, err := newEsxiNetwork(ctx, prefix, "192.168.199.0/24")
+	esxiNetwork, err := newEsxiNetwork(ctx, prefix, nodeSubent)
 	if err != nil {
 		return err
 	}
@@ -51,18 +50,26 @@ func newEsxiStack(ctx *pulumi.Context) error {
 	if err != nil {
 		return err
 	}
-	port, err := newEsxiPort(ctx, prefix, "192.168.199.10", esxiNetwork, sg)
+	nodeProps, err := parseNodeProps(conf)
 	if err != nil {
 		return err
 	}
-	// instance, err := newMetalInstance(ctx, np, port)
-	instance, err := newComputeInstance(ctx, prefix, np, port)
-	if err != nil {
-		return err
+	nodes := make([]*compute.Instance, 0)
+	for _, np := range nodeProps {
+		port, err := newEsxiPort(ctx, prefix, np, esxiNetwork, sg)
+		if err != nil {
+			return err
+		}
+		// instance, err := newMetalInstance(ctx, prefix, np, port)
+		instance, err := newComputeInstance(ctx, prefix, np, port)
+		if err != nil {
+			return err
+		}
+		nodes = append(nodes, instance)
 	}
 
 	// Create NFS Shares
-	storageNetwork, err := newStroageNetwork(ctx, prefix, "192.168.200.0/24")
+	storageNetwork, err := newStroageNetwork(ctx, prefix, storageSubnet)
 	if err != nil {
 		return err
 	}
@@ -95,10 +102,11 @@ func newEsxiStack(ctx *pulumi.Context) error {
 	ctx.Export("StorageSubnetID", storageNetwork.Subnet.ID())
 	ctx.Export("StorageSubnetCIDR", storageNetwork.Subnet.Cidr)
 
-	ctx.Export("EsxiInstanceName", instance.Name)
-	ctx.Export("EsxiInstanceID", instance.ID())
-	ctx.Export("EsxiInstanceIP", instance.AccessIpV4)
-
+	for i, n := range nodes {
+		ctx.Export(fmt.Sprintf("EsxiInstance%02dName", i), n.Name)
+		ctx.Export(fmt.Sprintf("EsxiInstance%02dID", i), n.ID())
+		ctx.Export(fmt.Sprintf("EsxiInstance%02dIP", i), n.AccessIpV4)
+	}
 	for i, s := range shares {
 		ctx.Export(fmt.Sprintf("Share%02dName", i), s.Name)
 		ctx.Export(fmt.Sprintf("Share%02dID", i), s.ID())
@@ -173,44 +181,14 @@ func newEsxiSecGroup(ctx *pulumi.Context, prefix string) (*compute.SecGroup, err
 	})
 }
 
-func newMetalInstance(ctx *pulumi.Context, node *NodeProps,
-	n *Network, sg *compute.SecGroup, ipAddr string) (*compute.Instance, error) {
-	port, err := networking.NewPort(ctx, "esxi-port", &networking.PortArgs{
-		AdminStateUp: pulumi.Bool(true),
-		NetworkId:    n.Network.ID(),
-		FixedIps: networking.PortFixedIpArray{
-			&networking.PortFixedIpArgs{
-				IpAddress: pulumi.String(ipAddr),
-				SubnetId:  n.Subnet.ID(),
-			},
-		},
-		SecurityGroupIds: pulumi.StringArray{
-			sg.ID(),
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-	return compute.NewInstance(ctx, "esxi-metal-instance", &compute.InstanceArgs{
-		FlavorName:            pulumi.String(node.Flavor),
-		ImageName:             pulumi.String(node.Image),
-		AvailabilityZoneHints: pulumi.String(fmt.Sprintf("::%s", node.UUID)),
-		Networks: compute.InstanceNetworkArray{
-			&compute.InstanceNetworkArgs{
-				Port: port.ID(),
-			},
-		},
-	})
-}
-
-func newEsxiPort(ctx *pulumi.Context, prefix, ipAddr string, n *Network, sg *compute.SecGroup) (*networking.Port, error) {
-	name := fmt.Sprintf("%s-port", prefix)
+func newEsxiPort(ctx *pulumi.Context, prefix string, node *NodeProps, n *Network, sg *compute.SecGroup) (*networking.Port, error) {
+	name := fmt.Sprintf("%s-port-%d", prefix, node.ID)
 	return networking.NewPort(ctx, name, &networking.PortArgs{
 		AdminStateUp: pulumi.Bool(true),
 		NetworkId:    n.Network.ID(),
 		FixedIps: networking.PortFixedIpArray{
 			&networking.PortFixedIpArgs{
-				IpAddress: pulumi.String(ipAddr),
+				IpAddress: pulumi.String(node.IP),
 				SubnetId:  n.Subnet.ID(),
 			},
 		},
@@ -221,7 +199,7 @@ func newEsxiPort(ctx *pulumi.Context, prefix, ipAddr string, n *Network, sg *com
 }
 
 func newComputeInstance(ctx *pulumi.Context, prefix string, node *NodeProps, port *networking.Port) (*compute.Instance, error) {
-	name := fmt.Sprintf("%s-instance", prefix)
+	name := fmt.Sprintf("%s-instance-%d", prefix, node.ID)
 	return compute.NewInstance(ctx, name, &compute.InstanceArgs{
 		FlavorName: pulumi.String(node.Flavor),
 		ImageName:  pulumi.String(node.Image),
@@ -233,6 +211,19 @@ func newComputeInstance(ctx *pulumi.Context, prefix string, node *NodeProps, por
 	})
 }
 
+func newEsxiInstance(ctx *pulumi.Context, prefix string, node *NodeProps, port *networking.Port) (*compute.Instance, error) {
+	name := fmt.Sprintf("%s-esxi-instance", prefix)
+	return compute.NewInstance(ctx, name, &compute.InstanceArgs{
+		FlavorName:            pulumi.String(node.Flavor),
+		ImageName:             pulumi.String(node.Image),
+		AvailabilityZoneHints: pulumi.String(fmt.Sprintf("::%s", node.UUID)),
+		Networks: compute.InstanceNetworkArray{
+			&compute.InstanceNetworkArgs{
+				Port: port.ID(),
+			},
+		},
+	})
+}
 func newShareNetwork(ctx *pulumi.Context, prefix string, n *Network) (*sharedfilesystem.ShareNetwork, error) {
 	name := fmt.Sprintf("%s-share-network", prefix)
 	return sharedfilesystem.NewShareNetwork(ctx, name, &sharedfilesystem.ShareNetworkArgs{
@@ -276,5 +267,14 @@ func parseNodeProps(conf *config.Config) ([]*NodeProps, error) {
 		return nil, err
 	}
 	np := make([]*NodeProps, nn)
+	for i := 0; i < nn; i++ {
+		np[i] = &NodeProps{
+			ID:     i,
+			Image:  conf.Require(fmt.Sprintf("node%02dImageName", i)),
+			Flavor: conf.Require(fmt.Sprintf("node%02dFlavorName", i)),
+			UUID:   conf.Require(fmt.Sprintf("node%02dUUID", i)),
+			IP:     conf.Require(fmt.Sprintf("node%02dIP", i)),
+		}
+	}
 	return np, nil
 }
