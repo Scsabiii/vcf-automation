@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
 )
@@ -55,9 +56,18 @@ func (s EsxiStack) Config(ctx context.Context) error {
 	s.SetConfig(ctx, "openstack:password", auto.ConfigValue{Value: osPassword, Secret: true})
 	s.SetConfig(ctx, "openstack:insecure", auto.ConfigValue{Value: "true"})
 
+	s.SetConfig(ctx, "resourcePrefix", auto.ConfigValue{Value: deployProps.Prefix})
+
 	// config instance
 	s.SetConfig(ctx, "imageName", auto.ConfigValue{Value: node.ImageName})
 	s.SetConfig(ctx, "flavorName", auto.ConfigValue{Value: node.FlavorName})
 	s.SetConfig(ctx, "nodeUUID", auto.ConfigValue{Value: node.UUID})
+	s.SetConfig(ctx, "nodeIP", auto.ConfigValue{Value: node.IP})
+
+	s.SetConfig(ctx, "numShares", auto.ConfigValue{Value: strconv.Itoa(len(s.config.Shares))})
+	for i, share := range s.config.Shares {
+		s.SetConfig(ctx, fmt.Sprintf("share%02dName", i), auto.ConfigValue{Value: share.Name})
+		s.SetConfig(ctx, fmt.Sprintf("share%02dSize", i), auto.ConfigValue{Value: share.Size})
+	}
 	return nil
 }

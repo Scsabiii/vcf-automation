@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto/optdestroy"
@@ -65,13 +66,16 @@ func RunStack(ctx context.Context, stack Stack, destroy bool) {
 
 func printOutputs(outs auto.OutputMap) {
 	var value string
-	for key, v := range outs {
-		if vv, ok := v.Value.(string); ok {
-			value = vv
-		} else {
+	for key, out := range outs {
+		switch v := out.Value.(type) {
+		case string:
+			value = v
+		case int:
+			value = strconv.Itoa(v)
+		default:
 			value = ""
 		}
-		fmt.Printf("%s:\t\t%s\n", key, value)
+		fmt.Printf("%30s\t%s\n", key, value)
 	}
 }
 

@@ -15,17 +15,24 @@ const (
 )
 
 type Config struct {
-	Type  DeployType  `yaml:"type"`
-	Props DeployProps `yaml:"props"`
-	Nodes []Node      `yaml:"nodes"`
-	Stack string
+	Stack  string
+	Type   DeployType  `yaml:"type"`
+	Props  DeployProps `yaml:"props"`
+	Nodes  []Node      `yaml:"nodes"`
+	Shares []Share     `yaml:"shares"`
 }
 
 type Node struct {
 	Name       string `yaml:"name"`
 	UUID       string `yaml:"uuid"`
+	IP         string `yaml:"ip"`
 	ImageName  string `yaml:"image"`
 	FlavorName string `yaml:"flavor"`
+}
+
+type Share struct {
+	Name string `yaml:"name"`
+	Size string `yaml:"size"`
 }
 
 type DeployProps struct {
@@ -33,6 +40,7 @@ type DeployProps struct {
 	Domain   string `yaml:"domain"`
 	Project  string `yaml:"project"`
 	UserName string `yaml:"user"`
+	Prefix   string `yaml:"resourcePrefix"`
 	Password string
 }
 
