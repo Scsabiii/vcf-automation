@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"cci-operator/server"
+	"ccmaas/server"
 )
 
 // serveCmd represents the serve command

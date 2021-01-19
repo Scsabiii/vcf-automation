@@ -1,7 +1,7 @@
 package main
 
 import (
-	"cci-operator/cmd"
+	"ccmaas/cmd"
 )
 
 func main() {

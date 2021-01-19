@@ -1,4 +1,4 @@
-module cci-operator
+module ccmaas
 
 go 1.15
 

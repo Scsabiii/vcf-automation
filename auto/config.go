@@ -10,7 +10,6 @@ type DeployType string
 
 const (
 	DeployEsxi    DeployType = "esxi"
-	DeployVCF     DeployType = "vcf"
 	DeployExample DeployType = "example"
 )
 

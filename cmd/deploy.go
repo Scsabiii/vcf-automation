@@ -7,7 +7,7 @@ import (
 	"os"
 	"path"
 
-	"cci-operator/auto"
+	"ccmaas/auto"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -16,6 +16,7 @@ import (
 var (
 	destroy bool
 	outputs bool
+	yaml    bool
 	stack   auto.Stack
 )
 
@@ -33,6 +34,7 @@ func init() {
 	rootCmd.AddCommand(deployCmd)
 	deployCmd.Flags().BoolVarP(&destroy, "destory", "d", false, "Destory stack")
 	deployCmd.Flags().BoolVarP(&outputs, "outputs", "o", false, "Outputs of stack")
+	deployCmd.Flags().BoolVarP(&yaml, "yaml", "y", false, "Yaml output")
 }
 
 func deploy(cfgName string) {
@@ -47,10 +49,6 @@ func deploy(cfgName string) {
 	case auto.DeployEsxi:
 		cfg.Stack = cfgName
 		stack = auto.InitEsxiStack(ctx, cfg)
-	case auto.DeployVCF:
-		cfg.Stack = cfgName
-		fmt.Println("Not implemented")
-		os.Exit(0)
 	}
 
 	if outputs {
@@ -58,6 +56,12 @@ func deploy(cfgName string) {
 		fmt.Println("Outputs")
 		fmt.Println("-------")
 		auto.PrintOutputs(ctx, stack)
+	} else if yaml {
+		yamlOutput := auto.GenYaml(ctx, cfg, stack)
+		fmt.Println()
+		fmt.Println("Yaml Outputs")
+		fmt.Println("-------")
+		fmt.Println(string(yamlOutput))
 	} else {
 		auto.RunStack(ctx, stack, destroy)
 	}

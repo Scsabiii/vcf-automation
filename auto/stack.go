@@ -10,6 +10,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto/optdestroy"
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto/optrefresh"
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto/optup"
+	"gopkg.in/yaml.v2"
 )
 
 type Stack interface {
@@ -18,6 +19,15 @@ type Stack interface {
 	Refresh(context.Context, ...optrefresh.Option) (auto.RefreshResult, error)
 	Destroy(context.Context, ...optdestroy.Option) (auto.DestroyResult, error)
 	Up(context.Context, ...optup.Option) (auto.UpResult, error)
+}
+
+type YamlOutput struct {
+	Nodes []NodeOutput `yaml:"nodes"`
+}
+
+type NodeOutput struct {
+	ID string `yaml:"id"`
+	IP string `yaml:"ip"`
 }
 
 func RunStack(ctx context.Context, stack Stack, destroy bool) {
@@ -85,6 +95,47 @@ func PrintOutputs(ctx context.Context, stack Stack) {
 	outs, err := stack.Outputs(ctx)
 	if err != nil {
 		fmt.Printf("PrintOutputs: %v\n", err)
+		os.Exit(1)
 	}
 	printOutputs(outs)
+}
+
+func GenYaml(ctx context.Context, cfg Config, stack Stack) []byte {
+	outputs, err := stack.Outputs(ctx)
+	if err != nil {
+		fmt.Printf("PrintYaml: %v\n", err)
+		os.Exit(1)
+	}
+	nodes := make([]NodeOutput, len(cfg.Nodes))
+	for i := 0; i < len(cfg.Nodes); i++ {
+		id, err := lookupOutput(outputs, fmt.Sprintf("EsxiInstance%02dID", i))
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		nodes[i].ID = id
+		ip, err := lookupOutput(outputs, fmt.Sprintf("EsxiInstance%02dIP", i))
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		nodes[i].IP = ip
+	}
+	res, err := yaml.Marshal(YamlOutput{nodes})
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	return res
+}
+
+func lookupOutput(outputs auto.OutputMap, key string) (string, error) {
+	for k, v := range outputs {
+		if k == key {
+			// TODO validate value type
+			return v.Value.(string), nil
+		}
+	}
+	err := fmt.Errorf("Key %q not found", key)
+	return "", err
 }
