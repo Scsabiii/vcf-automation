@@ -2,7 +2,6 @@
 /.os_domain
 /.os_project
 /.os_user_domain
-vendor/
-/viewer/
 /etc/
-/ccmaas
+/ccmaas/ccmaas
+viewer/
