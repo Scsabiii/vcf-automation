@@ -1,0 +1,7 @@
+.git
+bin
+ccmaas/viewer
+docker
+LICENSE
+README.md
+skaffold.yaml

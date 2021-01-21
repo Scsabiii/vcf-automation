@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pulumi-test
+spec:
+  selector:
+    matchLabels:
+      name: pulumi-test
+  serviceName: "pulumi-operator"
+  template:
+    metadata:
+      labels:
+        name: pulumi-test
+
+    spec:
+      containers:
+        - name: pulumi
+          image: keppel.eu-de-1.cloud.sap/ccloud/cci-esxi-pulumi:latest
+          command:
+            - sleep
+            - infinity
+          volumeMounts:
+            - mountPath: /pulumi/config.yaml
+              name: pulumi-etc
+              subPath: config.yaml
+          env:
+            - name: PULUMI_CONFIG_PASSPHRASE_FILE
+              value: /pulumi/.passphrase
+      volumes:
+        - name: pulumi-etc
+          configMap:
+            name: pulumi-etc

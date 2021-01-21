@@ -1,13 +1,18 @@
 apiVersion: skaffold/v2beta10
 kind: Config
 metadata:
-  name: pulumi-operator
+  name: ccmaas-operator
 build:
   artifacts:
-  - image: keppel.eu-de-1.cloud.sap/ccloud/cci-esxi-pulumi-go
+    - image: keppel.eu-de-1.cloud.sap/ccloud/ccmaas-operator
+      sync:
+        manual:
+          - src: "ccmaas/**/*.go"
+            dest: "src"
+            strip: "ccmaas/"
 deploy:
   kubectl:
     manifests:
-    - k8s/configmap.yaml
-    - k8s/deployment.yaml
-    defaultNamespace: cci-provision
+      # - k8s/configmap.yaml
+      - k8s/deployment.yaml
+    defaultNamespace: ccmaas
