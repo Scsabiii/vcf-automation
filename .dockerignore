@@ -1,7 +1,13 @@
 .git
 bin
+!bin/ccmaas_linux_amd64
 ccmaas/viewer
 docker
+k8s
+projects/*/.pulumi
+projects/*/Pulumi.*
+!projects/*/Pulumi.yaml
+projects/example-python
 LICENSE
 README.md
 skaffold.yaml

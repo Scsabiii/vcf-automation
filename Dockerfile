@@ -1,6 +1,6 @@
 # pulumi base
 ############################################################
-ARG pulumi_version=latest
+ARG pulumi_version=2.18.1
 FROM pulumi/pulumi-base:${pulumi_version} as pulumi
 
 # The runtime container
@@ -9,7 +9,7 @@ FROM pulumi/pulumi-base:${pulumi_version} as pulumi
 FROM golang:1.15-alpine
 LABEL source_repository="https://github.com/sapcc/ccmaas-operator"
 
-WORKDIR /pulumi/ccmaas/src
+WORKDIR /pulumi/ccmaas
 
 ENV PATH "/pulumi/bin:${PATH}"
 
@@ -19,10 +19,11 @@ COPY --from=pulumi /pulumi/bin/pulumi-analyzer-policy /pulumi/bin/pulumi-analyze
 
 RUN apk add --no-cache git libc6-compat ca-certificates
 
-COPY ccmaas /pulumi/ccmaas/src
-
 COPY etc /pulumi/ccmaas/etc
 COPY projects /pulumi/ccmaas/projects
+COPY entrypoint.sh /
+
+COPY bin/ccmaas_linux_amd64 /pulumi/bin/ccmaas
 # RUN cd src/ && go build -mod vendor -o /pulumi/bin/ccmaas
 
 ENTRYPOINT [ "/pulumi/bin/ccmaas"]

@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"ccmaas/server"
 )
@@ -37,8 +38,9 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("serve called")
-		server.Run(8080)
+		port := viper.GetInt("port")
+		fmt.Printf("ccmaas server listening on port %d\n", port)
+		server.Run(port)
 	},
 }
 
