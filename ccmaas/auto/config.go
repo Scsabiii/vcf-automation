@@ -19,53 +19,17 @@
 package auto
 
 import (
+	"fmt"
 	"io/ioutil"
+	"os"
+	"path"
 
 	"gopkg.in/yaml.v2"
 )
 
-type DeployType string
-
-const (
-	DeployEsxi    DeployType = "esxi"
-	DeployExample DeployType = "example"
-)
-
-type Config struct {
-	Stack  string
-	Type   DeployType  `yaml:"type"`
-	Props  DeployProps `yaml:"props"`
-	Nodes  []Node      `yaml:"nodes"`
-	Shares []Share     `yaml:"shares"`
-}
-
-type Node struct {
-	Name       string `yaml:"name"`
-	UUID       string `yaml:"uuid"`
-	IP         string `yaml:"ip"`
-	ImageName  string `yaml:"image"`
-	FlavorName string `yaml:"flavor"`
-}
-
-type Share struct {
-	Name string `yaml:"name"`
-	Size string `yaml:"size"`
-}
-
-type DeployProps struct {
-	Region           string `yaml:"region"`
-	Domain           string `yaml:"domain"`
-	Project          string `yaml:"project"`
-	UserName         string `yaml:"user"`
-	Prefix           string `yaml:"resourcePrefix"`
-	NodeSubnet       string `yaml:"nodeSubnet"`
-	StorageSubnet    string `yaml:"storageSubnet"`
-	ShareNetworkName string `yaml:"shareNetworkName"`
-	Password         string
-}
-
-func ReadConfig(path string) (cfg Config, err error) {
-	yamlBytes, err := ioutil.ReadFile(path)
+func GetConfig(stack string) (cfg Config, err error) {
+	cfgPath := path.Join("etc", fmt.Sprintf("%s.yaml", stack))
+	yamlBytes, err := ioutil.ReadFile(cfgPath)
 	if err != nil {
 		return
 	}
@@ -74,4 +38,70 @@ func ReadConfig(path string) (cfg Config, err error) {
 		return
 	}
 	return
+}
+
+func AddNode(stack string, n Node) error {
+	c, err := GetConfig(stack)
+	if err != nil {
+		return err
+	}
+	err = c.AddNode(n)
+	if err != nil {
+		return err
+	}
+	err = c.Save(true)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c Config) AddNode(n Node) error {
+	for _, nn := range c.Nodes {
+		if nn.Name == n.Name {
+			return fmt.Errorf("node %q exists in config %q", n.Name, c.Name)
+		}
+	}
+	c.Nodes = append(c.Nodes, n)
+	return nil
+}
+
+func (c Config) Save(overwrite bool) error {
+	if c.Name == "" {
+		return fmt.Errorf("config name required")
+	}
+	if c.Props.Domain == "" {
+		return fmt.Errorf("domain name required")
+	}
+	if c.Props.Project == "" {
+		return fmt.Errorf("project name required")
+	}
+	fpath := path.Join("etc", fmt.Sprintf("%s.yaml", c.Name))
+	return writeConfigToFile(c, fpath, overwrite)
+}
+
+func writeConfigToFile(cfg Config, fpath string, overwrite bool) error {
+	if !overwrite {
+		if fileExists(fpath) {
+			return fmt.Errorf("file %q exists", fpath)
+		}
+	}
+	b, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(fpath, b, 0644)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// fileExists checks if a file exists
+func fileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return true
 }

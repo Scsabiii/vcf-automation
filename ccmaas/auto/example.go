@@ -37,13 +37,13 @@ func InitExampleStack(ctx context.Context, cfg Config) ExampleStack {
 
 	fmt.Printf("Use project %q\n", workDir)
 
-	s, err := auto.UpsertStackLocalSource(ctx, cfg.Stack, workDir)
+	s, err := auto.UpsertStackLocalSource(ctx, cfg.Name, workDir)
 	if err != nil {
 		fmt.Printf("Failed to create or select stack: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Created/Selected stack %q\n", cfg.Stack)
+	fmt.Printf("Created/Selected stack %q\n", cfg.Name)
 	return ExampleStack{&s, cfg}
 }
 

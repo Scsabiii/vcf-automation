@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path"
 
 	"ccmaas/auto"
 
@@ -62,10 +61,10 @@ func deploy(cfgName string) {
 	// Initial pulumi stack
 	switch cfg.Type {
 	case auto.DeployExample:
-		cfg.Stack = "dev"
+		cfg.Name = "dev"
 		stack = auto.InitExampleStack(ctx, cfg)
 	case auto.DeployEsxi:
-		cfg.Stack = cfgName
+		cfg.Name = cfgName
 		stack = auto.InitEsxiStack(ctx, cfg)
 	}
 
@@ -86,8 +85,7 @@ func deploy(cfgName string) {
 }
 
 func readConfig(cfgName string) auto.Config {
-	cfgPath := path.Join("etc", fmt.Sprintf("%s.yaml", cfgName))
-	cfg, err := auto.ReadConfig(cfgPath)
+	cfg, err := auto.GetConfig(cfgName)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
