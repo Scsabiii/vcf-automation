@@ -28,13 +28,16 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func Run(port int) {
+var workDir string
+
+func Run(wd string, port int) {
+	workDir = wd
 	r := mux.NewRouter()
 	r.Headers("Content-Type", "application/json")
-	r.HandleFunc("/new", newStack).Methods("POST")
-	r.HandleFunc("/{stack}/addnode", addNode).Methods("POST")
-	r.HandleFunc("/{stack}/addstorage", addNode).Methods("POST")
-	r.HandleFunc("/{stack}/state", getStatus).Methods("GET")
+	r.HandleFunc("/{project}/{stack}/new", newStack).Methods("POST")
+	r.HandleFunc("/{project}/{stack}/addnode", addNode).Methods("POST")
+	r.HandleFunc("/{project}/{stack}/addstorage", addStorage).Methods("POST")
+	r.HandleFunc("/{project}/{stack}/state", getStatus).Methods("GET")
 	r.Use(loggingMiddleware)
 	http.Handle("/", r)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil))
@@ -44,35 +47,54 @@ func newStack(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 
-	stackCfg := auto.Config{}
-	err := decoder.Decode(&stackCfg)
+	vars := mux.Vars(r)
+	project := vars["project"]
+	stack := vars["stack"]
+
+	c, err := auto.NewController(workDir, project, stack)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+	}
+
+	err = decoder.Decode(&c.Config)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
-	err = stackCfg.Save(false)
+
+	err = c.SaveNewConfig()
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(stackCfg)
+	json.NewEncoder(w).Encode(c.Config)
 	// exec
 }
 
 func addNode(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 
+	vars := mux.Vars(r)
+	project := vars["project"]
+	stack := vars["stack"]
+
+	c, err := auto.NewController(workDir, project, stack)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+	}
+
+	c.LoadConfig()
+
 	n := auto.Node{}
-	err := decoder.Decode(&n)
+	err = decoder.Decode(&n)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
-	err = auto.AddNode(vars["stack"], n)
+	err = c.AddNode(n)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return

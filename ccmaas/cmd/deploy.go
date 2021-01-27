@@ -27,7 +27,6 @@ import (
 	"ccmaas/auto"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -35,15 +34,16 @@ var (
 	outputs bool
 	yaml    bool
 	stack   auto.Stack
+	ctl     auto.Controller
 )
 
 var deployCmd = &cobra.Command{
 	Use:   "deploy [cfgFileName]",
 	Short: "Provision CCI using config file (without .yaml suffix)",
 	Long:  `Provision CCI project (installing ESXi nodes)`,
-	Args:  cobra.MinimumNArgs(1),
+	Args:  cobra.MinimumNArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
-		deploy(args[0])
+		deploy(args[0], args[1])
 	},
 }
 
@@ -54,45 +54,44 @@ func init() {
 	deployCmd.Flags().BoolVarP(&yaml, "yaml", "y", false, "Yaml output")
 }
 
-func deploy(cfgName string) {
+func deploy(projectName, stackName string) {
 	ctx := context.Background()
-	cfg := readConfig(cfgName)
-
-	// Initial pulumi stack
-	switch cfg.Type {
-	case auto.DeployExample:
-		cfg.Name = "dev"
-		stack = auto.InitExampleStack(ctx, cfg)
-	case auto.DeployEsxi:
-		cfg.Name = cfgName
-		stack = auto.InitEsxiStack(ctx, cfg)
+	ctl, err := auto.NewController(workDir, projectName, stackName)
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+	err = ctl.LoadConfig()
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+	stack, err = ctl.InitStack(ctx)
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
 	}
 
 	if outputs {
 		fmt.Println()
 		fmt.Println("Outputs")
 		fmt.Println("-------")
-		auto.PrintOutputs(ctx, stack)
+		auto.PrintStackOutputs(ctx, stack)
 	} else if yaml {
-		yamlOutput := auto.GenYaml(ctx, cfg, stack)
+		yamlOutput, err := stack.GenYaml(ctx, ctl.Config)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 		fmt.Println()
 		fmt.Println("Yaml Outputs")
 		fmt.Println("-------")
 		fmt.Println(string(yamlOutput))
 	} else {
-		auto.RunStack(ctx, stack, destroy)
+		if destroy {
+			ctl.DestoryStack(ctx, stack)
+		} else {
+			ctl.UpdateStack(ctx, stack)
+		}
 	}
-}
-
-func readConfig(cfgName string) auto.Config {
-	cfg, err := auto.GetConfig(cfgName)
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
-	if cfg.Type == "" {
-		cfg.Type = auto.DeployEsxi
-	}
-	cfg.Props.Password = viper.GetString("os_password")
-	return cfg
 }

@@ -3,5 +3,6 @@
 /.os_project
 /.os_user_domain
 /etc/
+/data/
 /ccmaas/ccmaas
 viewer/

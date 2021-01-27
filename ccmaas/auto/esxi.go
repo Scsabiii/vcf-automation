@@ -21,37 +21,29 @@ package auto
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
+	"gopkg.in/yaml.v2"
 )
 
 type EsxiStack struct {
 	*auto.Stack
-	config Config
 }
 
-func InitEsxiStack(ctx context.Context, cfg Config) EsxiStack {
-	workDir := filepath.Join(".", "projects", "esxi")
-
-	fmt.Printf("Use project %q\n", workDir)
-
-	s, err := auto.UpsertStackLocalSource(ctx, cfg.Name, workDir)
+func InitEsxiStack(ctx context.Context, stackName, projectDir string) (EsxiStack, error) {
+	fmt.Printf("Use project %q\n", projectDir)
+	s, err := auto.UpsertStackLocalSource(ctx, stackName, projectDir)
 	if err != nil {
-		fmt.Printf("Failed to create or select stack: %v\n", err)
-		os.Exit(1)
+		return EsxiStack{}, fmt.Errorf("Failed to create or select stack: %v\n", err)
 	}
-
-	fmt.Printf("Created/Selected stack %q\n", cfg.Name)
-
-	return EsxiStack{&s, cfg}
+	fmt.Printf("Created/Selected stack %q\n", stackName)
+	return EsxiStack{&s}, nil
 }
 
 // Config stack
-func (s EsxiStack) Config(ctx context.Context) error {
-	deployProps := s.config.Props
+func (s EsxiStack) Configure(ctx context.Context, cfg Config) error {
+	deployProps := cfg.Props
 	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", deployProps.Region)
 	osProjectDomainName := deployProps.Domain
 	osProjectName := deployProps.Project
@@ -74,17 +66,57 @@ func (s EsxiStack) Config(ctx context.Context) error {
 	s.SetConfig(ctx, "shareNetworkUUID", auto.ConfigValue{Value: deployProps.ShareNetworkName})
 
 	// config instance
-	s.SetConfig(ctx, "numNodes", auto.ConfigValue{Value: strconv.Itoa(len(s.config.Nodes))})
-	for i, node := range s.config.Nodes {
+	s.SetConfig(ctx, "numNodes", auto.ConfigValue{Value: strconv.Itoa(len(cfg.Nodes))})
+	for i, node := range cfg.Nodes {
 		s.SetConfig(ctx, fmt.Sprintf("node%02dImageName", i), auto.ConfigValue{Value: node.ImageName})
 		s.SetConfig(ctx, fmt.Sprintf("node%02dFlavorName", i), auto.ConfigValue{Value: node.FlavorName})
 		s.SetConfig(ctx, fmt.Sprintf("node%02dUUID", i), auto.ConfigValue{Value: node.UUID})
 		s.SetConfig(ctx, fmt.Sprintf("node%02dIP", i), auto.ConfigValue{Value: node.IP})
 	}
-	s.SetConfig(ctx, "numShares", auto.ConfigValue{Value: strconv.Itoa(len(s.config.Shares))})
-	for i, share := range s.config.Shares {
+	s.SetConfig(ctx, "numShares", auto.ConfigValue{Value: strconv.Itoa(len(cfg.Shares))})
+	for i, share := range cfg.Shares {
 		s.SetConfig(ctx, fmt.Sprintf("share%02dName", i), auto.ConfigValue{Value: share.Name})
 		s.SetConfig(ctx, fmt.Sprintf("share%02dSize", i), auto.ConfigValue{Value: share.Size})
 	}
 	return nil
+}
+
+func (s EsxiStack) GenYaml(ctx context.Context, cfg Config) ([]byte, error) {
+	outputs, err := s.Outputs(ctx)
+	if err != nil {
+		fmt.Printf("PrintYaml: %v\n", err)
+		return nil, err
+	}
+	nodes := make([]NodeOutput, len(cfg.Nodes))
+	for i := 0; i < len(cfg.Nodes); i++ {
+		id, err := lookupOutput(outputs, fmt.Sprintf("EsxiInstance%02dID", i))
+		if err != nil {
+			fmt.Println(err)
+			return nil, err
+		}
+		nodes[i].ID = id
+		ip, err := lookupOutput(outputs, fmt.Sprintf("EsxiInstance%02dIP", i))
+		if err != nil {
+			fmt.Println(err)
+			return nil, err
+		}
+		nodes[i].IP = ip
+	}
+	res, err := yaml.Marshal(YamlOutput{nodes})
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	return res, nil
+}
+
+func lookupOutput(outputs auto.OutputMap, key string) (string, error) {
+	for k, v := range outputs {
+		if k == key {
+			// TODO validate value type
+			return v.Value.(string), nil
+		}
+	}
+	err := fmt.Errorf("Key %q not found", key)
+	return "", err
 }

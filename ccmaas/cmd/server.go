@@ -40,7 +40,7 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		port := viper.GetInt("port")
 		fmt.Printf("ccmaas server listening on port %d\n", port)
-		server.Run(port)
+		server.Run(workDir, port)
 	},
 }
 

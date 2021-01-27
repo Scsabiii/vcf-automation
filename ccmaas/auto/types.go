@@ -18,19 +18,23 @@
 
 package auto
 
-type DeployType string
-
 const (
 	DeployEsxi    DeployType = "esxi"
 	DeployExample DeployType = "example"
 )
 
-type Config struct {
-	Name   string      `yaml:"name"`
-	Type   DeployType  `yaml:"type"`
-	Props  DeployProps `yaml:"props"`
-	Nodes  []Node      `yaml:"nodes"`
-	Shares []Share     `yaml:"shares"`
+type DeployType string
+
+type DeployProps struct {
+	Region           string `yaml:"region"`
+	Domain           string `yaml:"domain"`
+	Project          string `yaml:"project"`
+	UserName         string `yaml:"user"`
+	Prefix           string `yaml:"resourcePrefix"`
+	NodeSubnet       string `yaml:"nodeSubnet"`
+	StorageSubnet    string `yaml:"storageSubnet"`
+	ShareNetworkName string `yaml:"shareNetworkName"`
+	Password         string
 }
 
 type Node struct {
@@ -44,16 +48,4 @@ type Node struct {
 type Share struct {
 	Name string `yaml:"name"`
 	Size string `yaml:"size"`
-}
-
-type DeployProps struct {
-	Region           string `yaml:"region"`
-	Domain           string `yaml:"domain"`
-	Project          string `yaml:"project"`
-	UserName         string `yaml:"user"`
-	Prefix           string `yaml:"resourcePrefix"`
-	NodeSubnet       string `yaml:"nodeSubnet"`
-	StorageSubnet    string `yaml:"storageSubnet"`
-	ShareNetworkName string `yaml:"shareNetworkName"`
-	Password         string
 }

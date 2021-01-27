@@ -21,39 +21,41 @@ package auto
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
-	"path"
 
 	"gopkg.in/yaml.v2"
 )
 
-func GetConfig(stack string) (cfg Config, err error) {
-	cfgPath := path.Join("etc", fmt.Sprintf("%s.yaml", stack))
-	yamlBytes, err := ioutil.ReadFile(cfgPath)
-	if err != nil {
-		return
-	}
-	err = yaml.Unmarshal(yamlBytes, &cfg)
-	if err != nil {
-		return
-	}
-	return
+type Config struct {
+	Name   string      `yaml:"name"`
+	Type   DeployType  `yaml:"type"`
+	Props  DeployProps `yaml:"props"`
+	Nodes  []Node      `yaml:"nodes"`
+	Shares []Share     `yaml:"shares"`
 }
 
-func AddNode(stack string, n Node) error {
-	c, err := GetConfig(stack)
+func ReadConfig(fpath string, c *Config) error {
+	yamlBytes, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return err
 	}
-	err = c.AddNode(n)
+	return yaml.Unmarshal(yamlBytes, c)
+}
+
+func (c Config) Write(fpath string) error {
+	if c.Name == "" {
+		return fmt.Errorf("config name required")
+	}
+	if c.Props.Domain == "" {
+		return fmt.Errorf("domain name required")
+	}
+	if c.Props.Project == "" {
+		return fmt.Errorf("project name required")
+	}
+	b, err := yaml.Marshal(c)
 	if err != nil {
 		return err
 	}
-	err = c.Save(true)
-	if err != nil {
-		return err
-	}
-	return nil
+	return ioutil.WriteFile(fpath, b, 0644)
 }
 
 func (c Config) AddNode(n Node) error {
@@ -64,44 +66,4 @@ func (c Config) AddNode(n Node) error {
 	}
 	c.Nodes = append(c.Nodes, n)
 	return nil
-}
-
-func (c Config) Save(overwrite bool) error {
-	if c.Name == "" {
-		return fmt.Errorf("config name required")
-	}
-	if c.Props.Domain == "" {
-		return fmt.Errorf("domain name required")
-	}
-	if c.Props.Project == "" {
-		return fmt.Errorf("project name required")
-	}
-	fpath := path.Join("etc", fmt.Sprintf("%s.yaml", c.Name))
-	return writeConfigToFile(c, fpath, overwrite)
-}
-
-func writeConfigToFile(cfg Config, fpath string, overwrite bool) error {
-	if !overwrite {
-		if fileExists(fpath) {
-			return fmt.Errorf("file %q exists", fpath)
-		}
-	}
-	b, err := yaml.Marshal(cfg)
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(fpath, b, 0644)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// fileExists checks if a file exists
-func fileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return true
 }

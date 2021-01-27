@@ -21,35 +21,28 @@ package auto
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
 )
 
 type ExampleStack struct {
 	*auto.Stack
-	config Config
 }
 
-func InitExampleStack(ctx context.Context, cfg Config) ExampleStack {
-	workDir := filepath.Join("projects", "example-go")
-
-	fmt.Printf("Use project %q\n", workDir)
-
-	s, err := auto.UpsertStackLocalSource(ctx, cfg.Name, workDir)
+func InitExampleStack(ctx context.Context, stackName, projectDir string) (ExampleStack, error) {
+	fmt.Printf("Use project %q\n", projectDir)
+	s, err := auto.UpsertStackLocalSource(ctx, stackName, projectDir)
 	if err != nil {
-		fmt.Printf("Failed to create or select stack: %v\n", err)
-		os.Exit(1)
+		e := fmt.Errorf("failed to create/select stack: %v", err)
+		return ExampleStack{}, e
 	}
-
-	fmt.Printf("Created/Selected stack %q\n", cfg.Name)
-	return ExampleStack{&s, cfg}
+	fmt.Printf("Created/Selected stack %q\n", stackName)
+	return ExampleStack{&s}, nil
 }
 
 // Config set stack configuration
-func (s ExampleStack) Config(ctx context.Context) error {
-	props := s.config.Props
+func (s ExampleStack) Configure(ctx context.Context, cfg Config) error {
+	props := cfg.Props
 	osRegion := props.Region
 	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", osRegion)
 	osProjectDomainName := props.Domain
@@ -65,4 +58,8 @@ func (s ExampleStack) Config(ctx context.Context) error {
 	s.SetConfig(ctx, "openstack:password", auto.ConfigValue{Value: osPassword, Secret: true})
 	s.SetConfig(ctx, "openstack:insecure", auto.ConfigValue{Value: "true"})
 	return nil
+}
+
+func (s ExampleStack) GenYaml(ctx context.Context, cfg Config) ([]byte, error) {
+	return nil, fmt.Errorf("not implemented")
 }
