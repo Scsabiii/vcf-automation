@@ -39,6 +39,9 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		port := viper.GetInt("port")
+		if port == 0 {
+			port = 8080
+		}
 		fmt.Printf("ccmaas server listening on port %d\n", port)
 		server.Run(workDir, port)
 	},
