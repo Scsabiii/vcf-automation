@@ -31,6 +31,7 @@ import (
 )
 
 type Stack interface {
+	Workspace() auto.Workspace
 	Configure(context.Context, Config) error
 	Outputs(context.Context) (auto.OutputMap, error)
 	Refresh(context.Context, ...optrefresh.Option) (auto.RefreshResult, error)

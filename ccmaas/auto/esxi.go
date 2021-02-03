@@ -46,7 +46,7 @@ func (s EsxiStack) Configure(ctx context.Context, cfg Config) error {
 	deployProps := cfg.Props
 	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", deployProps.Region)
 	osProjectDomainName := deployProps.Domain
-	osProjectName := deployProps.Project
+	osTenantName := deployProps.Tenant
 	osUserName := deployProps.UserName
 	osPassword := deployProps.Password
 
@@ -54,7 +54,7 @@ func (s EsxiStack) Configure(ctx context.Context, cfg Config) error {
 	s.SetConfig(ctx, "openstack:region", auto.ConfigValue{Value: deployProps.Region})
 	s.SetConfig(ctx, "openstack:authUrl", auto.ConfigValue{Value: osAuthURL})
 	s.SetConfig(ctx, "openstack:projectDomainName", auto.ConfigValue{Value: osProjectDomainName})
-	s.SetConfig(ctx, "openstack:tenantName", auto.ConfigValue{Value: osProjectName})
+	s.SetConfig(ctx, "openstack:tenantName", auto.ConfigValue{Value: osTenantName})
 	s.SetConfig(ctx, "openstack:userDomainName", auto.ConfigValue{Value: osProjectDomainName})
 	s.SetConfig(ctx, "openstack:userName", auto.ConfigValue{Value: osUserName})
 	s.SetConfig(ctx, "openstack:password", auto.ConfigValue{Value: osPassword, Secret: true})
@@ -66,15 +66,15 @@ func (s EsxiStack) Configure(ctx context.Context, cfg Config) error {
 	s.SetConfig(ctx, "shareNetworkUUID", auto.ConfigValue{Value: deployProps.ShareNetworkName})
 
 	// config instance
-	s.SetConfig(ctx, "numNodes", auto.ConfigValue{Value: strconv.Itoa(len(cfg.Nodes))})
-	for i, node := range cfg.Nodes {
+	s.SetConfig(ctx, "numNodes", auto.ConfigValue{Value: strconv.Itoa(len(cfg.Props.Nodes))})
+	for i, node := range cfg.Props.Nodes {
 		s.SetConfig(ctx, fmt.Sprintf("node%02dImageName", i), auto.ConfigValue{Value: node.ImageName})
 		s.SetConfig(ctx, fmt.Sprintf("node%02dFlavorName", i), auto.ConfigValue{Value: node.FlavorName})
 		s.SetConfig(ctx, fmt.Sprintf("node%02dUUID", i), auto.ConfigValue{Value: node.UUID})
 		s.SetConfig(ctx, fmt.Sprintf("node%02dIP", i), auto.ConfigValue{Value: node.IP})
 	}
-	s.SetConfig(ctx, "numShares", auto.ConfigValue{Value: strconv.Itoa(len(cfg.Shares))})
-	for i, share := range cfg.Shares {
+	s.SetConfig(ctx, "numShares", auto.ConfigValue{Value: strconv.Itoa(len(cfg.Props.Shares))})
+	for i, share := range cfg.Props.Shares {
 		s.SetConfig(ctx, fmt.Sprintf("share%02dName", i), auto.ConfigValue{Value: share.Name})
 		s.SetConfig(ctx, fmt.Sprintf("share%02dSize", i), auto.ConfigValue{Value: share.Size})
 	}
@@ -87,8 +87,8 @@ func (s EsxiStack) GenYaml(ctx context.Context, cfg Config) ([]byte, error) {
 		fmt.Printf("PrintYaml: %v\n", err)
 		return nil, err
 	}
-	nodes := make([]NodeOutput, len(cfg.Nodes))
-	for i := 0; i < len(cfg.Nodes); i++ {
+	nodes := make([]NodeOutput, len(cfg.Props.Nodes))
+	for i := 0; i < len(cfg.Props.Nodes); i++ {
 		id, err := lookupOutput(outputs, fmt.Sprintf("EsxiInstance%02dID", i))
 		if err != nil {
 			fmt.Println(err)

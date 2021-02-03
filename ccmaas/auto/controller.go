@@ -2,79 +2,86 @@ package auto
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto/optdestroy"
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto/optup"
+	"gopkg.in/yaml.v2"
 )
 
 type Controller struct {
 	Config
-	WorkDir     string
-	ProjectName string
-	StackName   string
+	WorkDir string
+	stack   Stack
 }
 
-func NewController(workDir, project, stack string) (*Controller, error) {
+func NewController(workDir, project, stack string) (c Controller, err error) {
+	c = Controller{WorkDir: workDir}
 	if project != "esxi" && project != "example" {
-		return nil, fmt.Errorf("project must be one of %q and %q", "esxi", "example")
+		err = fmt.Errorf("project must be one of %q and %q", "esxi", "example")
+		return
 	}
-	c := Controller{WorkDir: workDir, ProjectName: project, StackName: stack}
-	return &c, nil
+	if err = c.ReadConfig(project, stack); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			c.Config = Config{
+				Project: DeployType(project),
+				Stack:   stack,
+			}
+			err = c.WriteConfig()
+		}
+	}
+	return
+}
+
+// ReadConfig reads stack configuration from ./etc directory
+func (c Controller) ReadConfig(project, stack string) error {
+	fname := fmt.Sprintf("%s-%s.yaml", project, stack)
+	fpath := path.Join(c.WorkDir, "etc", fname)
+	yamlBytes, err := ioutil.ReadFile(fpath)
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(yamlBytes, &c.Config)
+}
+
+// WriteConfig writes config file in ./etc directory
+func (c Controller) WriteConfig() error {
+	fname := fmt.Sprintf("%s-%s.yaml", c.Project, c.Stack)
+	fpath := path.Join(c.WorkDir, "etc", fname)
+	return c.Config.Write(fpath)
 }
 
 func (c Controller) AddNode(n Node) error {
-	err := c.LoadConfig()
+	err := c.Config.AddNode(n)
 	if err != nil {
 		return err
 	}
-	err = c.Config.AddNode(n)
-	if err != nil {
-		return err
-	}
-	return c.SaveConfig()
-}
-
-func (c Controller) LoadConfig() error {
-	fpath := path.Join(c.WorkDir, fmt.Sprintf("%s-%s.yaml", c.ProjectName, c.StackName))
-	return ReadConfig(fpath, &c.Config)
-}
-
-// Save new configuration file; overwrite is not allowed
-func (c Controller) SaveNewConfig() error {
-	fpath := path.Join(c.WorkDir, fmt.Sprintf("%s-%s.yaml", c.ProjectName, c.StackName))
-	if fileExists(fpath) {
-		return fmt.Errorf("file %q exists", fpath)
-	}
-	return c.Config.Write(fpath)
-}
-
-// Save configuration file; overwrite is allowed
-func (c Controller) SaveConfig() error {
-	fpath := path.Join(c.WorkDir, fmt.Sprintf("%s-%s.yaml", c.ProjectName, c.StackName))
-	return c.Config.Write(fpath)
+	return c.WriteConfig()
 }
 
 func (c Controller) InitStack(ctx context.Context) (s Stack, err error) {
-	switch c.Type {
+	switch DeployType(c.Project) {
 	case DeployExample:
 		projectDir := filepath.Join(c.WorkDir, "projects", "example-go")
-		s, err = InitExampleStack(ctx, c.StackName, projectDir)
+		s, err = InitExampleStack(ctx, c.Stack, projectDir)
 		if err != nil {
 			return
 		}
 	case DeployEsxi:
 		projectDir := filepath.Join(c.WorkDir, "projects", "esxi")
-		s, err = InitEsxiStack(ctx, c.StackName, projectDir)
+		s, err = InitEsxiStack(ctx, c.Stack, projectDir)
 		if err != nil {
 			return
 		}
 	default:
-		err = fmt.Errorf("type not supported: %s", c.Type)
+		err = fmt.Errorf("project %q: %v", c.Project, ErrNotSupported)
 	}
+	c.stack = s
 	return
 }
 
@@ -138,11 +145,7 @@ func (c Controller) DestoryStack(ctx context.Context, s Stack) error {
 	return nil
 }
 
-// fileExists checks if a file exists
-func fileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return true
+func (c Controller) GetState(ctx context.Context, s Stack) error {
+
+	return nil
 }

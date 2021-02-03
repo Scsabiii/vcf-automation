@@ -46,13 +46,13 @@ func (s ExampleStack) Configure(ctx context.Context, cfg Config) error {
 	osRegion := props.Region
 	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", osRegion)
 	osProjectDomainName := props.Domain
-	osProjectName := props.Project
+	osTenantName := props.Tenant
 	osUserName := props.UserName
 	osPassword := props.Password
 	s.SetConfig(ctx, "openstack:region", auto.ConfigValue{Value: osRegion})
 	s.SetConfig(ctx, "openstack:authUrl", auto.ConfigValue{Value: osAuthURL})
 	s.SetConfig(ctx, "openstack:projectDomainName", auto.ConfigValue{Value: osProjectDomainName})
-	s.SetConfig(ctx, "openstack:tenantName", auto.ConfigValue{Value: osProjectName})
+	s.SetConfig(ctx, "openstack:tenantName", auto.ConfigValue{Value: osTenantName})
 	s.SetConfig(ctx, "openstack:userDomainName", auto.ConfigValue{Value: osProjectDomainName})
 	s.SetConfig(ctx, "openstack:userName", auto.ConfigValue{Value: osUserName})
 	s.SetConfig(ctx, "openstack:password", auto.ConfigValue{Value: osPassword, Secret: true})

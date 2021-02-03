@@ -28,13 +28,15 @@ type DeployType string
 type DeployProps struct {
 	Region           string `yaml:"region"`
 	Domain           string `yaml:"domain"`
-	Project          string `yaml:"project"`
+	Tenant           string `yaml:"tenant"`
 	UserName         string `yaml:"user"`
 	Prefix           string `yaml:"resourcePrefix"`
 	NodeSubnet       string `yaml:"nodeSubnet"`
 	StorageSubnet    string `yaml:"storageSubnet"`
 	ShareNetworkName string `yaml:"shareNetworkName"`
 	Password         string
+	Nodes            []Node  `yaml:"nodes"`
+	Shares           []Share `yaml:"shares"`
 }
 
 type Node struct {

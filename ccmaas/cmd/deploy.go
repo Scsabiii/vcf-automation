@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"ccmaas/auto"
 
@@ -38,12 +39,25 @@ var (
 )
 
 var deployCmd = &cobra.Command{
-	Use:   "deploy [cfgFileName]",
+	Use:   "deploy [projectName/stackName]",
 	Short: "Provision CCI using config file (without .yaml suffix)",
 	Long:  `Provision CCI project (installing ESXi nodes)`,
-	Args:  cobra.MinimumNArgs(2),
+	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		deploy(args[0], args[1])
+		var project, stack string
+		projectStackNames := strings.Split(args[0], "/")
+		if len(projectStackNames) == 1 {
+			project = "esxi"
+			stack = projectStackNames[0]
+		} else if len(projectStackNames) == 2 {
+			project = projectStackNames[0]
+			stack = projectStackNames[1]
+		} else {
+			err := fmt.Errorf("arg must be of format [projectName/][stackName]")
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		deploy(project, stack)
 	},
 }
 
@@ -57,11 +71,6 @@ func init() {
 func deploy(projectName, stackName string) {
 	ctx := context.Background()
 	ctl, err := auto.NewController(workDir, projectName, stackName)
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
-	err = ctl.LoadConfig()
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)

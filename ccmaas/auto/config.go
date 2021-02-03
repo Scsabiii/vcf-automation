@@ -26,30 +26,17 @@ import (
 )
 
 type Config struct {
-	Name   string      `yaml:"name"`
-	Type   DeployType  `yaml:"type"`
-	Props  DeployProps `yaml:"props"`
-	Nodes  []Node      `yaml:"nodes"`
-	Shares []Share     `yaml:"shares"`
-}
-
-func ReadConfig(fpath string, c *Config) error {
-	yamlBytes, err := ioutil.ReadFile(fpath)
-	if err != nil {
-		return err
-	}
-	return yaml.Unmarshal(yamlBytes, c)
+	Stack   string      `yaml:"name"`
+	Project DeployType  `yaml:"type"`
+	Props   DeployProps `yaml:"props"`
 }
 
 func (c Config) Write(fpath string) error {
-	if c.Name == "" {
-		return fmt.Errorf("config name required")
+	if c.Project == "" {
+		return fmt.Errorf("%q: %v", "Project", ErrStringEmpty)
 	}
-	if c.Props.Domain == "" {
-		return fmt.Errorf("domain name required")
-	}
-	if c.Props.Project == "" {
-		return fmt.Errorf("project name required")
+	if c.Stack == "" {
+		return fmt.Errorf("%q: %v", "Stack", ErrStringEmpty)
 	}
 	b, err := yaml.Marshal(c)
 	if err != nil {
@@ -59,11 +46,21 @@ func (c Config) Write(fpath string) error {
 }
 
 func (c Config) AddNode(n Node) error {
-	for _, nn := range c.Nodes {
+	for _, nn := range c.Props.Nodes {
 		if nn.Name == n.Name {
-			return fmt.Errorf("node %q exists in config %q", n.Name, c.Name)
+			return fmt.Errorf("%q: %v", n.Name, ErrNodeExists)
 		}
 	}
-	c.Nodes = append(c.Nodes, n)
+	c.Props.Nodes = append(c.Props.Nodes, n)
+	return nil
+}
+
+func (c Config) validate() error {
+	if c.Props.Domain == "" {
+		return fmt.Errorf("%q: %v", "Props.Domain", ErrStringEmpty)
+	}
+	if c.Props.Domain == "" {
+		return fmt.Errorf("%q: %v", "Props.Tenant", ErrStringEmpty)
+	}
 	return nil
 }

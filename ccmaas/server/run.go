@@ -20,6 +20,7 @@ package server
 
 import (
 	"ccmaas/auto"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -37,7 +38,7 @@ func Run(wd string, port int) {
 	r.HandleFunc("/{project}/{stack}/new", newStack).Methods("POST")
 	r.HandleFunc("/{project}/{stack}/addnode", addNode).Methods("POST")
 	r.HandleFunc("/{project}/{stack}/addstorage", addStorage).Methods("POST")
-	r.HandleFunc("/{project}/{stack}/state", getStatus).Methods("GET")
+	r.HandleFunc("/{project}/{stack}/state", getState).Methods("GET")
 	r.Use(loggingMiddleware)
 	http.Handle("/", r)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil))
@@ -62,7 +63,7 @@ func newStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = c.SaveNewConfig()
+	err = c.WriteConfig()
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return
@@ -86,8 +87,6 @@ func addNode(w http.ResponseWriter, r *http.Request) {
 		handleError(w, http.StatusInternalServerError, err)
 	}
 
-	c.LoadConfig()
-
 	n := auto.Node{}
 	err = decoder.Decode(&n)
 	if err != nil {
@@ -108,10 +107,20 @@ func addNode(w http.ResponseWriter, r *http.Request) {
 func addStorage(w http.ResponseWriter, r *http.Request) {
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request) {
+func getState(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
+	project := vars["project"]
 	stack := vars["stack"]
-	fmt.Fprintf(w, "Node: %v\n", stack)
+
+	ctx := context.Background()
+
+	c, err := auto.NewController(workDir, project, stack)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+	}
+	s, err := c.InitStack(ctx)
+
+	c.GetState(ctx, s)
 }
 
 func handleError(w http.ResponseWriter, statusCode int, e error) {
