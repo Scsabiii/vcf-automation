@@ -43,7 +43,7 @@ to quickly create a Cobra application.`,
 			port = 8080
 		}
 		fmt.Printf("ccmaas server listening on port %d\n", port)
-		server.Run(workDir, port)
+		server.Run(port)
 	},
 }
 

@@ -21,12 +21,11 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
-
-var workDir string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -56,7 +55,8 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	rootCmd.PersistentFlags().StringVarP(&workDir, "workdir", "w", "./", "work directory")
+	rootCmd.PersistentFlags().String("workdir", "", "work directory")
+	viper.BindPFlag("workdir", rootCmd.PersistentFlags().Lookup("workdir"))
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
@@ -68,4 +68,25 @@ func initConfig() {
 	// read in environment variables that match
 	viper.SetEnvPrefix("ccmaas")
 	viper.AutomaticEnv()
+}
+
+func logErrorAndExit(e error) {
+	fmt.Println("ERROR", e)
+	os.Exit(1)
+}
+
+func extractProjectStack(args []string) (project, stack string) {
+	projectStackNames := strings.Split(args[0], "/")
+	if len(projectStackNames) == 1 {
+		project = "esxi"
+		stack = projectStackNames[0]
+	} else if len(projectStackNames) == 2 {
+		project = projectStackNames[0]
+		stack = projectStackNames[1]
+	} else {
+		err := fmt.Errorf("arg must be of format [projectName/][stackName]")
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	return
 }

@@ -25,13 +25,25 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Config is configuration of project
 type Config struct {
 	Stack   string      `yaml:"name"`
 	Project DeployType  `yaml:"type"`
 	Props   DeployProps `yaml:"props"`
 }
 
-func (c Config) Write(fpath string) error {
+func (c *Config) Read(fpath string) error {
+	yamlBytes, err := ioutil.ReadFile(fpath)
+	if err != nil {
+		return err
+	}
+	if err := yaml.Unmarshal(yamlBytes, c); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Config) Write(fpath string) error {
 	if c.Project == "" {
 		return fmt.Errorf("%q: %v", "Project", ErrStringEmpty)
 	}
@@ -45,7 +57,7 @@ func (c Config) Write(fpath string) error {
 	return ioutil.WriteFile(fpath, b, 0644)
 }
 
-func (c Config) AddNode(n Node) error {
+func (c *Config) AddNode(n Node) error {
 	for _, nn := range c.Props.Nodes {
 		if nn.Name == n.Name {
 			return fmt.Errorf("%q: %v", n.Name, ErrNodeExists)
@@ -55,11 +67,11 @@ func (c Config) AddNode(n Node) error {
 	return nil
 }
 
-func (c Config) validate() error {
+func (c *Config) validate() error {
 	if c.Props.Domain == "" {
 		return fmt.Errorf("%q: %v", "Props.Domain", ErrStringEmpty)
 	}
-	if c.Props.Domain == "" {
+	if c.Props.Tenant == "" {
 		return fmt.Errorf("%q: %v", "Props.Tenant", ErrStringEmpty)
 	}
 	return nil

@@ -19,29 +19,21 @@
 package cmd
 
 import (
-	"context"
-	"fmt"
-
 	"ccmaas/auto"
+	"context"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-var (
-	outputs bool
-	yaml    bool
-	ctl     auto.Controller
-)
-
-var deployCmd = &cobra.Command{
-	Use:   "deploy [projectName/stackName]",
-	Short: "Provision CCI using config file (without .yaml suffix)",
-	Long:  `Provision CCI project (installing ESXi nodes)`,
+var stateCmd = &cobra.Command{
+	Use:   "state [projectName/stackName]",
+	Short: "Last deployment state",
+	Long:  `Last deployment state`,
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		ctx := context.Background()
-		workDir := viper.GetString("workdir")
+		var ctx = context.Background()
+		var workDir = viper.GetString("workdir")
 		project, stack := extractProjectStack(args)
 		c, err := auto.NewController(workDir, project, stack)
 		if err != nil {
@@ -51,31 +43,13 @@ var deployCmd = &cobra.Command{
 		if err != nil {
 			logErrorAndExit(err)
 		}
-		if outputs {
-			fmt.Println()
-			fmt.Println("Outputs")
-			fmt.Println("-------")
-			// c.PrintStackOutputs(ctx)
-			// } else if yaml {
-			// 	yamlOutput, err := c.GenerateStackYaml(ctx, c.Config)
-			// 	if err != nil {
-			// 		fmt.Println(err)
-			// 		os.Exit(1)
-			// 	}
-			// 	fmt.Println()
-			// 	fmt.Println("Yaml Outputs")
-			// 	fmt.Println("-------")
-			// 	fmt.Println(string(yamlOutput))
-		} else {
-			if err := c.Update(ctx); err != nil {
-				logErrorAndExit(err)
-			}
-		}
+		// err = c.Stack.State(ctx)
+		// if err != nil {
+		// 	logErrorAndExit(err)
+		// }
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(deployCmd)
-	deployCmd.Flags().BoolVarP(&outputs, "outputs", "o", false, "Outputs of stack")
-	deployCmd.Flags().BoolVarP(&yaml, "yaml", "y", false, "Yaml output")
+	rootCmd.AddCommand(stateCmd)
 }

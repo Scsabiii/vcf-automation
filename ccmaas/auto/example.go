@@ -21,23 +21,29 @@ package auto
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
+	"github.com/pulumi/pulumi/sdk/v2/go/x/auto/optdestroy"
+	"github.com/pulumi/pulumi/sdk/v2/go/x/auto/optup"
 )
 
 type ExampleStack struct {
 	*auto.Stack
+	state ExampleState
+}
+
+type ExampleState struct {
+	err error
 }
 
 func InitExampleStack(ctx context.Context, stackName, projectDir string) (ExampleStack, error) {
-	fmt.Printf("Use project %q\n", projectDir)
 	s, err := auto.UpsertStackLocalSource(ctx, stackName, projectDir)
 	if err != nil {
 		e := fmt.Errorf("failed to create/select stack: %v", err)
 		return ExampleStack{}, e
 	}
-	fmt.Printf("Created/Selected stack %q\n", stackName)
-	return ExampleStack{&s}, nil
+	return ExampleStack{Stack: &s}, nil
 }
 
 // Config set stack configuration
@@ -62,4 +68,44 @@ func (s ExampleStack) Configure(ctx context.Context, cfg Config) error {
 
 func (s ExampleStack) GenYaml(ctx context.Context, cfg Config) ([]byte, error) {
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (s ExampleStack) Refresh(ctx context.Context) error {
+	if res, err := s.Stack.Refresh(ctx); err != nil {
+		s.state.err = err
+		return err
+	} else {
+		fmt.Println(res)
+		return nil
+	}
+}
+
+func (s ExampleStack) Update(ctx context.Context) error {
+	stdoutStreamer := optup.ProgressStreams(os.Stdout)
+	if res, err := s.Stack.Up(ctx, stdoutStreamer); err != nil {
+		s.state.err = err
+		return err
+	} else {
+		fmt.Println(res)
+		return nil
+	}
+}
+
+func (s ExampleStack) Destroy(ctx context.Context) error {
+	stdoutStreamer := optdestroy.ProgressStreams(os.Stdout)
+	if res, err := s.Stack.Destroy(ctx, stdoutStreamer); err != nil {
+		s.state.err = err
+		return err
+	} else {
+		fmt.Println(res)
+		return nil
+	}
+}
+
+func (s ExampleStack) State() interface{} {
+	return nil
+}
+
+func (s ExampleStack) Error() error {
+	return nil
 }

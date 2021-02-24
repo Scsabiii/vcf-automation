@@ -9,3 +9,6 @@ build: ../bin/${app}_linux_amd64 ../bin/${app}_darwin_amd64
 
 ../bin/${app}_darwin_amd64: $(GOFILES)
 	GOOS=darwin GOARCH=amd64 go build -o $@ -mod vendor
+
+../bin/${app}: ../bin/${app}_darwin_amd64
+	@cp $< $@

@@ -21,5 +21,7 @@ package auto
 import "errors"
 
 var ErrStringEmpty = errors.New("string empty")
-var ErrNodeExists = errors.New("node exists")
 var ErrNotSupported = errors.New("not supported")
+var ErrNodeExists = errors.New("node exists")
+var ErrStackNotInitialized = errors.New("stack not initialized")
+var ErrBackendURLNotSet = errors.New("env variable PULUMI_BACKEND_URL not set")

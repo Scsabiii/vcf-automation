@@ -20,24 +20,30 @@ package auto
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"strconv"
 
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
-	"github.com/pulumi/pulumi/sdk/v2/go/x/auto/optdestroy"
-	"github.com/pulumi/pulumi/sdk/v2/go/x/auto/optrefresh"
-	"github.com/pulumi/pulumi/sdk/v2/go/x/auto/optup"
 )
 
 type Stack interface {
 	Workspace() auto.Workspace
 	Configure(context.Context, Config) error
-	Outputs(context.Context) (auto.OutputMap, error)
-	Refresh(context.Context, ...optrefresh.Option) (auto.RefreshResult, error)
-	Destroy(context.Context, ...optdestroy.Option) (auto.DestroyResult, error)
-	Up(context.Context, ...optup.Option) (auto.UpResult, error)
 	GenYaml(context.Context, Config) ([]byte, error)
+
+	Refresh(context.Context) error
+	Update(context.Context) error
+	Destroy(context.Context) error
+	State() interface{}
+	Error() error
+
+	// GetState()
+
+	// Outputs(context.Context) (auto.OutputMap, error)
+	// Destroy(context.Context, ...optdestroy.Option) (auto.DestroyResult, error)
+	// Preview(ctx context.Context, opts ...optpreview.Option) (auto.PreviewResult, error)
+	// Info(ctx context.Context) (auto.StackSummary, error)
+
+	// History(ctx context.Context) ([]auto.UpdateSummary, error)
+	// History(ctx context.Context, pageSize int, page int) ([]auto.UpdateSummary, error)
 }
 
 type YamlOutput struct {
@@ -47,30 +53,4 @@ type YamlOutput struct {
 type NodeOutput struct {
 	ID string `yaml:"id"`
 	IP string `yaml:"ip"`
-}
-
-func printOutputs(outs auto.OutputMap) {
-	var value string
-	for key, out := range outs {
-		switch v := out.Value.(type) {
-		case string:
-			value = v
-		case int:
-			value = strconv.Itoa(v)
-		case int64:
-			value = fmt.Sprintf("%d", v)
-		default:
-			value = ""
-		}
-		fmt.Printf("%30s\t%s\n", key, value)
-	}
-}
-
-func PrintStackOutputs(ctx context.Context, stack Stack) {
-	outs, err := stack.Outputs(ctx)
-	if err != nil {
-		fmt.Printf("PrintOutputs: %v\n", err)
-		os.Exit(1)
-	}
-	printOutputs(outs)
 }

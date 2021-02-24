@@ -23,16 +23,47 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"path"
+	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/spf13/viper"
 )
 
-var workDir string
+var (
+	newStackCh   = make(chan *auto.Config)
+	addNodeCh    = make(chan *NodeConfig)
+	addStorageCh = make(chan *StorageConfig)
+	getStateCh   = make(chan int)
+)
 
-func Run(wd string, port int) {
-	workDir = wd
+type NodeConfig struct {
+	project string
+	stack   string
+	node    *auto.Node
+}
+
+type StorageConfig struct {
+	project string
+	stack   string
+	storage *auto.Share
+}
+
+type Controller struct {
+	*auto.Controller
+	Error error
+}
+
+func Run(port int) {
+
+	workdir := viper.GetString("workdir")
+	stackControllers := make(map[string]*Controller)
+	ctx := context.Background()
+
 	r := mux.NewRouter()
 	r.Headers("Content-Type", "application/json")
 	r.HandleFunc("/{project}/{stack}/new", newStack).Methods("POST")
@@ -40,6 +71,94 @@ func Run(wd string, port int) {
 	r.HandleFunc("/{project}/{stack}/addstorage", addStorage).Methods("POST")
 	r.HandleFunc("/{project}/{stack}/state", getState).Methods("GET")
 	r.Use(loggingMiddleware)
+
+	// initialize controllers
+	files, err := ioutil.ReadDir(path.Join(workdir, "etc"))
+	if err != nil {
+		log.Panic(err)
+	}
+	for _, f := range files {
+		project, stack, err := extractProjectStack(f.Name())
+		if err != nil {
+			log.Println("WARN", err)
+			continue
+		}
+
+		key := fmt.Sprintf("%s-%s", project, stack)
+		stackControllers[key] = &Controller{}
+
+		c, err := auto.NewController(workdir, project, stack)
+		if err != nil {
+			log.Println("ERROR", err)
+			stackControllers[key].Error = err
+		} else {
+			stackControllers[key].Controller = c
+		}
+	}
+
+	// start refresh/deploy loop
+	go func() {
+		ticker := time.Tick(5 * time.Minute)
+		for {
+
+			// refresh stack and print state
+			for _, c := range stackControllers {
+				log.Println("INFO", "refreshing stack", c.Controller.Config.Project, c.Controller.Config.Stack)
+				c.Refresh(ctx)
+				stateBytes, err := c.State()
+				if err != nil {
+					log.Println("ERROR", err)
+				} else {
+					log.Println("DEBUG", string(stateBytes))
+				}
+			}
+
+			select {
+			case s := <-newStackCh:
+				workdir := viper.GetString("workdir")
+
+				key := fmt.Sprintf("%s-%s", s.Project, s.Stack)
+				stackControllers[key] = &Controller{}
+
+				c, err := auto.NewController(workdir, string(s.Project), s.Stack)
+				if err != nil {
+					stackControllers[key].Error = err
+					log.Println("ERROR", err)
+					continue
+				} else {
+					stackControllers[key].Controller = c
+				}
+
+				ctx := context.Background()
+				err = c.InitStack(ctx)
+				if err != nil {
+					stackControllers[key].Error = err
+					log.Println("ERROR", err)
+					continue
+				}
+
+				err = c.Update(ctx)
+				if err != nil {
+					stackControllers[key].Error = err
+					log.Println("ERROR", err)
+					continue
+				}
+
+			case <-addNodeCh:
+				// err = c.AddNode(n)
+				// if err != nil {
+				// 	handleError(w, http.StatusInternalServerError, err)
+				// 	return
+				// }
+
+			case <-addStorageCh:
+			case <-getStateCh:
+			case <-ticker:
+			}
+
+		}
+	}()
+
 	http.Handle("/", r)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil))
 }
@@ -49,78 +168,69 @@ func newStack(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	vars := mux.Vars(r)
-	project := vars["project"]
-	stack := vars["stack"]
-
-	c, err := auto.NewController(workDir, project, stack)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
+	c := auto.Config{
+		Stack:   vars["stack"],
+		Project: auto.DeployType(vars["project"]),
 	}
-
-	err = decoder.Decode(&c.Config)
+	err := decoder.Decode(&c.Props)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	err = c.WriteConfig()
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
-	}
+	// TODO: timeout
+	// send stack config to process loop
+	newStackCh <- &c
 
+	// request is ok;
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(c.Config)
-	// exec
+	json.NewEncoder(w).Encode(c)
 }
 
 func addNode(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
-
 	vars := mux.Vars(r)
-	project := vars["project"]
-	stack := vars["stack"]
-
-	c, err := auto.NewController(workDir, project, stack)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-	}
-
 	n := auto.Node{}
-	err = decoder.Decode(&n)
+	err := decoder.Decode(&n)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
-	err = c.AddNode(n)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
+	node := NodeConfig{
+		project: vars["project"],
+		stack:   vars["stack"],
+		node:    &n,
 	}
-
+	addNodeCh <- &node
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(n)
-	// exec
 }
 
 func addStorage(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	vars := mux.Vars(r)
+	s := auto.Share{}
+	err := decoder.Decode(&s)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
+	storage := StorageConfig{
+		project: vars["project"],
+		stack:   vars["stack"],
+		storage: &s,
+	}
+	addStorageCh <- &storage
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(s)
 }
 
 func getState(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	project := vars["project"]
-	stack := vars["stack"]
-
-	ctx := context.Background()
-
-	c, err := auto.NewController(workDir, project, stack)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-	}
-	s, err := c.InitStack(ctx)
-
-	c.GetState(ctx, s)
+	// vars := mux.Vars(r)
+	// project := vars["project"]
+	// stack := vars["stack"]
 }
 
 func handleError(w http.ResponseWriter, statusCode int, e error) {
@@ -135,4 +245,18 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		// fmt.Println(r.Method, r.RequestURI)
 		next.ServeHTTP(w, r)
 	})
+}
+
+func extractProjectStack(fname string) (project, stack string, err error) {
+	if strings.HasSuffix(fname, ".yaml") {
+		fname = fname[0 : len(fname)-5]
+		projectStackNames := strings.Split(fname, "-")
+		if len(projectStackNames) == 2 {
+			project = projectStackNames[0]
+			stack = projectStackNames[1]
+			return
+		}
+	}
+	err = fmt.Errorf("not a configuration file: %q", fname)
+	return
 }
