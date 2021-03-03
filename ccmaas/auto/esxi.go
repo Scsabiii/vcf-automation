@@ -119,37 +119,19 @@ func (s EsxiStack) Refresh(ctx context.Context) error {
 		s.state.refreshError = err
 		return err
 	}
-	chkpt, err := readCheckpoint(s.Stack.Name())
-	for _, res := range chkpt.Latest.Resources {
-		fmt.Println(res.URN.Name(), res.Outputs)
-		if res.Type == "pulumi.pulumi.Stack" {
-			for k, v := range res.Outputs {
-				switch k {
-				case "EsxiNetworkName":
-					if vv, ok := v.(string); ok {
-						s.state.NodeNetworkName = vv
-					}
-				case "EsxiNetworkID":
-					if vv, ok := v.(string); ok {
-						s.state.NodeNetworkID = vv
-					}
-				default:
-				}
-			}
-		}
-	}
+	// printUpdateSummary(res.Summary)
 	return nil
 }
 
 func (s EsxiStack) Update(ctx context.Context) error {
-	if res, err := s.Stack.Up(ctx); err != nil {
+	res, err := s.Stack.Up(ctx)
+	if err != nil {
 		s.state.err = err
 		return err
-	} else {
-		fmt.Println(res.Summary)
-		fmt.Println(res.Outputs)
-		return nil
 	}
+	// printUpdateSummary(res.Summary)
+	printStackOutputs(res.Outputs)
+	return nil
 }
 
 func (s EsxiStack) Destroy(ctx context.Context) error {
@@ -208,4 +190,20 @@ func lookupOutput(outputs auto.OutputMap, key string) (string, error) {
 	}
 	err := fmt.Errorf("Key %q not found", key)
 	return "", err
+}
+
+func (s EsxiStack) SetState() {
+	// for k, v := range res.Outputs {
+	// 	switch k {
+	// 	case "EsxiNetworkName":
+	// 		if vv, ok := v.(string); ok {
+	// 			s.state.NodeNetworkName = vv
+	// 		}
+	// 	case "EsxiNetworkID":
+	// 		if vv, ok := v.(string); ok {
+	// 			s.state.NodeNetworkID = vv
+	// 		}
+	// 	default:
+	// 	}
+	// }
 }

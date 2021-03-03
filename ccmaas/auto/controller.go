@@ -5,18 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"net/url"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
 	"sync"
 
-	pkgstack "github.com/pulumi/pulumi/pkg/v2/resource/stack"
-	"github.com/pulumi/pulumi/sdk/v2/go/common/apitype"
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
-	// pkgstack "github.com/pulumi/pulumi/pkg/v2/resource/stack"
 )
 
 type Controller struct {
@@ -32,10 +28,11 @@ func NewController(workdir, project, stack string) (c *Controller, err error) {
 		err = fmt.Errorf("project must be one of %q and %q", "esxi", "example")
 		return
 	}
+
 	if err = c.ReadConfig(project, stack); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			fmt.Println("WARN", "config does not exist")
-			fmt.Println("INFO", "create new config")
+			log.Println("WARN", "config does not exist")
+			log.Println("INFO", "create new config")
 			c.Config = Config{
 				Stack:   stack,
 				Project: DeployType(project),
@@ -51,7 +48,7 @@ func NewController(workdir, project, stack string) (c *Controller, err error) {
 func (c *Controller) ReadConfig(project, stack string) error {
 	fname := fmt.Sprintf("%s-%s.yaml", project, stack)
 	fpath := path.Join(c.workdir, "etc", fname)
-	fmt.Println("INFO", "load config", fpath)
+	log.Println("INFO", "load config", fpath)
 	return c.Config.Read(fpath)
 }
 
@@ -59,7 +56,7 @@ func (c *Controller) ReadConfig(project, stack string) error {
 func (c *Controller) WriteConfig() error {
 	fname := fmt.Sprintf("%s-%s.yaml", c.Project, c.Stack)
 	fpath := path.Join(c.workdir, "etc", fname)
-	fmt.Println("INFO", "write config", fpath)
+	log.Println("INFO", "write config", fpath)
 	return c.Config.Write(fpath)
 }
 
@@ -84,13 +81,13 @@ func (c *Controller) InitStack(ctx context.Context) error {
 		}
 
 	case DeployEsxi:
-		fmt.Println("INFO", "initializing esxi stack")
-
 		projectDir := filepath.Join(c.workdir, "projects", "esxi")
 		stackName := c.Stack
+		pstackName := fmt.Sprintf("%s-%s", c.Project, c.Stack)
 
-		fmt.Println("INFO", "use project:", projectDir)
-		fmt.Println("INFO", "use stack:", stackName)
+		log.Println("INFO", "initializing esxi stack", pstackName)
+		log.Println("INFO", "use project:", projectDir)
+		log.Println("INFO", "use stack:", stackName)
 
 		s, err := InitEsxiStack(ctx, stackName, projectDir)
 		if err != nil {
@@ -98,23 +95,15 @@ func (c *Controller) InitStack(ctx context.Context) error {
 		}
 		c.stack = s
 
-		fmt.Println("INFO", "start configuring stack")
+		log.Println("INFO", "start configuring stack", pstackName)
 
 		if err := s.Configure(ctx, c.Config); err != nil {
 			return err
 		}
 
-		fmt.Println("INFO", "successfully set stack config")
-		fmt.Println("INFO", "esxi stack initialized")
+		log.Println("INFO", "successfully set stack config")
+		log.Println("INFO", "successfully initialized esxi stack")
 
-		//ToDo: load stack stae before refresh
-
-		// 		fmt.Println("INFO", "starting refresh")
-		// 		if err := c.stack.Refresh(ctx); err != nil {
-		// 			fmt.Printf("Failed to refresh stack: %v\n", err)
-		// 			return err
-		// 		}
-		// 		fmt.Println("INFO", "refresh succeeded!")
 	default:
 		return fmt.Errorf("project %q: %v", c.Project, ErrNotSupported)
 	}
@@ -135,12 +124,10 @@ func (c *Controller) Refresh(ctx context.Context) error {
 func (c *Controller) Update(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	fmt.Println("INFO", "Starting update")
 	if err := c.stack.Update(ctx); err != nil {
 		fmt.Printf("Failed to update stack: %v\n\n", err)
 		return err
 	}
-	fmt.Println("INFO", "Update succeeded!")
 	return nil
 }
 
@@ -162,26 +149,10 @@ func (c *Controller) State() ([]byte, error) {
 	return json.Marshal(c.stack.State())
 }
 
-func readCheckpoint(stack string) (chk *apitype.CheckpointV3, err error) {
-	backendURL := os.Getenv("PULUMI_BACKEND_URL")
-	if backendURL == "" {
-		return nil, ErrBackendURLNotSet
-	}
-	parsedURL, err := url.Parse(backendURL)
-	if err != nil {
-		return nil, err
-	}
-	fname := fmt.Sprintf("%s.json", stack)
-	fpath := path.Join(parsedURL.Path, ".pulumi", "stacks", fname)
-	bytes, err := ioutil.ReadFile(fpath)
-	if err != nil {
-		return nil, err
-	}
-	chk, err = pkgstack.UnmarshalVersionedCheckpointToLatestCheckpoint(bytes)
-	if err != nil {
-		return nil, err
-	}
-	return
+func (c *Controller) PrintStackResources() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	printStackResources(c.Stack)
 }
 
 // func (c *Controller) GetState(ctx context.Context) error {

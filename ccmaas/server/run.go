@@ -59,7 +59,6 @@ type Controller struct {
 }
 
 func Run(port int) {
-
 	workdir := viper.GetString("workdir")
 	stackControllers := make(map[string]*Controller)
 	ctx := context.Background()
@@ -72,28 +71,38 @@ func Run(port int) {
 	r.HandleFunc("/{project}/{stack}/state", getState).Methods("GET")
 	r.Use(loggingMiddleware)
 
-	// initialize controllers
+	// read configuration files and initialize controllers
+	// Config files are in yaml format, and is named with pattern
+	// <project_name>-<stack-name>.yaml.
+	log.Println("INFO", "read configuration files in", workdir)
 	files, err := ioutil.ReadDir(path.Join(workdir, "etc"))
 	if err != nil {
 		log.Panic(err)
 	}
+
 	for _, f := range files {
+		log.Println("INFO", "processing file", f.Name())
+
 		project, stack, err := extractProjectStack(f.Name())
 		if err != nil {
 			log.Println("WARN", err)
 			continue
 		}
-
 		key := fmt.Sprintf("%s-%s", project, stack)
 		stackControllers[key] = &Controller{}
-
 		c, err := auto.NewController(workdir, project, stack)
 		if err != nil {
 			log.Println("ERROR", err)
 			stackControllers[key].Error = err
-		} else {
-			stackControllers[key].Controller = c
+			continue
 		}
+		err = c.InitStack(ctx)
+		if err != nil {
+			log.Println("ERROR", err)
+			stackControllers[key].Error = err
+			continue
+		}
+		stackControllers[key].Controller = c
 	}
 
 	// start refresh/deploy loop
@@ -101,16 +110,21 @@ func Run(port int) {
 		ticker := time.Tick(5 * time.Minute)
 		for {
 
-			// refresh stack and print state
+			// first refresh then update stack
 			for _, c := range stackControllers {
-				log.Println("INFO", "refreshing stack", c.Controller.Config.Project, c.Controller.Config.Stack)
-				c.Refresh(ctx)
-				stateBytes, err := c.State()
+				log.Printf("INFO refreshing stack \"%s-%s\"\n", c.Project, c.Stack)
+				err := c.Refresh(ctx)
 				if err != nil {
 					log.Println("ERROR", err)
-				} else {
-					log.Println("DEBUG", string(stateBytes))
+					continue
 				}
+				log.Printf("INFO updating stack \"%s-%s\"\n", c.Project, c.Stack)
+				err = c.Update(ctx)
+				if err != nil {
+					log.Println("ERROR", err)
+					continue
+				}
+				c.PrintStackResources()
 			}
 
 			select {
