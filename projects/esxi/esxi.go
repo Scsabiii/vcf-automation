@@ -19,8 +19,8 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"strconv"
 
 	"github.com/pulumi/pulumi-openstack/sdk/v2/go/openstack/compute"
 	"github.com/pulumi/pulumi-openstack/sdk/v2/go/openstack/networking"
@@ -40,16 +40,16 @@ type EsxiInstance struct {
 }
 
 type NodeProps struct {
-	ID     int
-	Image  string
-	Flavor string
-	UUID   string
-	IP     string
+	ID     int    `json:"id"`
+	Image  string `json:"image"`
+	Flavor string `json:"flavor"`
+	UUID   string `json:"uuid"`
+	IP     string `json:"ip"`
 }
 
 type ShareProps struct {
-	Name string
-	Size int
+	Name string `json:"name"`
+	Size int    `json:"size"`
 }
 
 func newEsxiStack(ctx *pulumi.Context) error {
@@ -58,6 +58,20 @@ func newEsxiStack(ctx *pulumi.Context) error {
 	prefix := conf.Get("resourcePrefix")
 	nodeSubent := conf.Get("nodeSubnet")
 	storageSubnet := conf.Get("storageSubnet")
+
+	nodePropsStr := conf.Get("nodes")
+	nodeProps := make([]NodeProps, 0)
+	err := json.Unmarshal([]byte(nodePropsStr), &nodeProps)
+	if err != nil {
+		return err
+	}
+
+	sharePropsStr := conf.Get("shares")
+	shareProps := make([]ShareProps, 0)
+	err = json.Unmarshal([]byte(sharePropsStr), &shareProps)
+	if err != nil {
+		return err
+	}
 
 	// Create Instance
 	esxiNetwork, err := newEsxiNetwork(ctx, prefix, nodeSubent)
@@ -68,18 +82,13 @@ func newEsxiStack(ctx *pulumi.Context) error {
 	if err != nil {
 		return err
 	}
-	nodeProps, err := parseNodeProps(conf)
-	if err != nil {
-		return err
-	}
 	nodes := make([]*compute.Instance, 0)
 	for _, np := range nodeProps {
-		port, err := newEsxiPort(ctx, prefix, np, esxiNetwork, sg)
+		port, err := newEsxiPort(ctx, prefix, &np, esxiNetwork, sg)
 		if err != nil {
 			return err
 		}
-		// instance, err := newMetalInstance(ctx, prefix, np, port)
-		instance, err := newComputeInstance(ctx, prefix, np, port)
+		instance, err := newComputeInstance(ctx, prefix, &np, port)
 		if err != nil {
 			return err
 		}
@@ -95,13 +104,9 @@ func newEsxiStack(ctx *pulumi.Context) error {
 	if err != nil {
 		return err
 	}
-	shareProps, err := readShareProps(conf)
-	if err != nil {
-		return err
-	}
 	shares := make([]*sharedfilesystem.Share, 0)
 	for _, s := range shareProps {
-		nfs, err := newNFSShare(ctx, prefix, s, shareNetwork)
+		nfs, err := newNFSShare(ctx, prefix, &s, shareNetwork)
 		if err != nil {
 			return err
 		}
@@ -258,41 +263,4 @@ func newNFSShare(ctx *pulumi.Context, prefix string, p *ShareProps, sn *sharedfi
 		ShareProto:     pulumi.String("NFS"),
 		Size:           pulumi.Int(p.Size),
 	})
-}
-
-func readShareProps(conf *config.Config) ([]*ShareProps, error) {
-	ns, err := strconv.Atoi(conf.Require("numShares"))
-	if err != nil {
-		return nil, err
-	}
-	sp := make([]*ShareProps, ns)
-	for i := 0; i < ns; i++ {
-		size, err := strconv.Atoi(conf.Require(fmt.Sprintf("share%02dSize", i)))
-		if err != nil {
-			return nil, err
-		}
-		sp[i] = &ShareProps{
-			Name: conf.Require(fmt.Sprintf("share%02dName", i)),
-			Size: size,
-		}
-	}
-	return sp, nil
-}
-
-func parseNodeProps(conf *config.Config) ([]*NodeProps, error) {
-	nn, err := strconv.Atoi(conf.Require("numNodes"))
-	if err != nil {
-		return nil, err
-	}
-	np := make([]*NodeProps, nn)
-	for i := 0; i < nn; i++ {
-		np[i] = &NodeProps{
-			ID:     i,
-			Image:  conf.Require(fmt.Sprintf("node%02dImageName", i)),
-			Flavor: conf.Require(fmt.Sprintf("node%02dFlavorName", i)),
-			UUID:   conf.Require(fmt.Sprintf("node%02dUUID", i)),
-			IP:     conf.Require(fmt.Sprintf("node%02dIP", i)),
-		}
-	}
-	return np, nil
 }

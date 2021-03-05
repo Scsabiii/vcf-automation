@@ -44,6 +44,16 @@ func NewController(workdir, project, stack string) (c *Controller, err error) {
 	return
 }
 
+func NewControllerFromCfgFile(wd, fpath string) (c *Controller, err error) {
+	cfg := Config{}
+	err = cfg.Read(fpath)
+	if err != nil {
+		return
+	}
+	c = &Controller{Config: cfg, workdir: wd}
+	return
+}
+
 // ReadConfig reads stack configuration from ./etc directory
 func (c *Controller) ReadConfig(project, stack string) error {
 	fname := fmt.Sprintf("%s-%s.yaml", project, stack)
@@ -83,26 +93,11 @@ func (c *Controller) InitStack(ctx context.Context) error {
 	case DeployEsxi:
 		projectDir := filepath.Join(c.workdir, "projects", "esxi")
 		stackName := c.Stack
-		pstackName := fmt.Sprintf("%s-%s", c.Project, c.Stack)
-
-		log.Println("INFO", "initializing esxi stack", pstackName)
-		log.Println("INFO", "use project:", projectDir)
-		log.Println("INFO", "use stack:", stackName)
-
 		s, err := InitEsxiStack(ctx, stackName, projectDir)
 		if err != nil {
 			return err
 		}
 		c.stack = s
-
-		log.Println("INFO", "start configuring stack", pstackName)
-
-		if err := s.Configure(ctx, c.Config); err != nil {
-			return err
-		}
-
-		log.Println("INFO", "successfully set stack config")
-		log.Println("INFO", "successfully initialized esxi stack")
 
 	default:
 		return fmt.Errorf("project %q: %v", c.Project, ErrNotSupported)
@@ -111,11 +106,25 @@ func (c *Controller) InitStack(ctx context.Context) error {
 	return nil
 }
 
+func (c *Controller) Configure(ctx context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stack == nil {
+		return fmt.Errorf("stack uninitialized")
+	}
+	if err := c.stack.Configure(ctx, c.Config); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Controller) Refresh(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.stack == nil {
+		return fmt.Errorf("stack uninitialized")
+	}
 	if err := c.stack.Refresh(ctx); err != nil {
-		fmt.Printf("Failed to refresh stack: %v\n", err)
 		return err
 	}
 	return nil
@@ -124,8 +133,10 @@ func (c *Controller) Refresh(ctx context.Context) error {
 func (c *Controller) Update(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.stack == nil {
+		return fmt.Errorf("stack uninitialized")
+	}
 	if err := c.stack.Update(ctx); err != nil {
-		fmt.Printf("Failed to update stack: %v\n\n", err)
 		return err
 	}
 	return nil
@@ -146,7 +157,14 @@ func (c *Controller) Destory(ctx context.Context) error {
 func (c *Controller) State() ([]byte, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.stack == nil {
+		return nil, fmt.Errorf("stack uninitialized")
+	}
 	return json.Marshal(c.stack.State())
+}
+
+func (c *Controller) RuntimeError() error {
+	return c.stack.Error()
 }
 
 func (c *Controller) PrintStackResources() {

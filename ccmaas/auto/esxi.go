@@ -20,8 +20,8 @@ package auto
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"strconv"
 
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
 	"github.com/spf13/viper"
@@ -30,7 +30,7 @@ import (
 
 type EsxiStack struct {
 	*auto.Stack
-	state EsxiState
+	state *EsxiState
 }
 
 type EsxiState struct {
@@ -47,7 +47,7 @@ func InitEsxiStack(ctx context.Context, stackName, projectDir string) (EsxiStack
 	if err != nil {
 		return EsxiStack{}, fmt.Errorf("Failed to create or select stack: %v\n", err)
 	}
-	return EsxiStack{Stack: &s}, nil
+	return EsxiStack{Stack: &s, state: &EsxiState{}}, nil
 }
 
 // Config stack
@@ -97,19 +97,18 @@ func (s EsxiStack) Configure(ctx context.Context, cfg Config) error {
 	s.SetConfig(ctx, "storageSubnet", auto.ConfigValue{Value: cfg.Props.StorageSubnet})
 	s.SetConfig(ctx, "shareNetworkUUID", auto.ConfigValue{Value: cfg.Props.ShareNetworkName})
 
-	// config instance
-	s.SetConfig(ctx, "numNodes", auto.ConfigValue{Value: strconv.Itoa(len(cfg.Props.Nodes))})
-	for i, node := range cfg.Props.Nodes {
-		s.SetConfig(ctx, fmt.Sprintf("node%02dImageName", i), auto.ConfigValue{Value: node.ImageName})
-		s.SetConfig(ctx, fmt.Sprintf("node%02dFlavorName", i), auto.ConfigValue{Value: node.FlavorName})
-		s.SetConfig(ctx, fmt.Sprintf("node%02dUUID", i), auto.ConfigValue{Value: node.UUID})
-		s.SetConfig(ctx, fmt.Sprintf("node%02dIP", i), auto.ConfigValue{Value: node.IP})
+	nodes, err := json.Marshal(cfg.Props.Nodes)
+	if err != nil {
+		return err
 	}
-	s.SetConfig(ctx, "numShares", auto.ConfigValue{Value: strconv.Itoa(len(cfg.Props.Shares))})
-	for i, share := range cfg.Props.Shares {
-		s.SetConfig(ctx, fmt.Sprintf("share%02dName", i), auto.ConfigValue{Value: share.Name})
-		s.SetConfig(ctx, fmt.Sprintf("share%02dSize", i), auto.ConfigValue{Value: share.Size})
+	s.SetConfig(ctx, "nodes", auto.ConfigValue{Value: string(nodes)})
+
+	shares, err := json.Marshal(cfg.Props.Shares)
+	if err != nil {
+		return err
 	}
+	s.SetConfig(ctx, "shares", auto.ConfigValue{Value: string(shares)})
+
 	return nil
 }
 

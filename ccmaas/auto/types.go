@@ -40,14 +40,14 @@ type DeployProps struct {
 }
 
 type Node struct {
-	Name       string `yaml:"name"`
-	UUID       string `yaml:"uuid"`
-	IP         string `yaml:"ip"`
-	ImageName  string `yaml:"image"`
-	FlavorName string `yaml:"flavor"`
+	Name   string `yaml:"name"`
+	UUID   string `yaml:"uuid"`
+	IP     string `yaml:"ip"`
+	Image  string `yaml:"image"`
+	Flavor string `yaml:"flavor"`
 }
 
 type Share struct {
 	Name string `yaml:"name"`
-	Size string `yaml:"size"`
+	Size int    `yaml:"size"`
 }
