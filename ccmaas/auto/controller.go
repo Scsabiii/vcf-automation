@@ -3,10 +3,8 @@ package auto
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
-	"os"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -23,35 +21,33 @@ type Controller struct {
 }
 
 func NewController(workdir, project, stack string) (c *Controller, err error) {
-	c = &Controller{workdir: workdir, stack: nil}
-	if project != "esxi" && project != "example" {
-		err = fmt.Errorf("project must be one of %q and %q", "esxi", "example")
-		return
-	}
+	// c = &Controller{workdir: workdir, stack: nil}
+	// if project != "esxi" && project != "example" {
+	// 	err = fmt.Errorf("project must be one of %q and %q", "esxi", "example")
+	// 	return
+	// }
 
-	if err = c.ReadConfig(project, stack); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			log.Println("WARN", "config does not exist")
-			log.Println("INFO", "create new config")
-			c.Config = Config{
-				Stack:   stack,
-				Project: DeployType(project),
-				Props:   DeployProps{Prefix: stack},
-			}
-			err = c.WriteConfig()
-		}
-	}
+	// if err = c.ReadConfig(project, stack); err != nil {
+	// 	if errors.Is(err, os.ErrNotExist) {
+	// 		log.Println("WARN", "config does not exist")
+	// 		log.Println("INFO", "create new config")
+	// 		c.Config = Config{
+	// 			Stack:   stack,
+	// 			Project: DeployType(project),
+	// 			Props:   DeployProps{Prefix: stack},
+	// 		}
+	// 		err = c.WriteConfig()
+	// 	}
+	// }
 	return
 }
 
-func NewControllerFromCfgFile(wd, fpath string) (c *Controller, err error) {
-	cfg := Config{}
-	err = cfg.Read(fpath)
+func NewControllerFromConfigFile(wd, fpath string) (*Controller, error) {
+	c, err := ReadConfig(fpath)
 	if err != nil {
-		return
+		return nil, err
 	}
-	c = &Controller{Config: cfg, workdir: wd}
-	return
+	return &Controller{Config: *c, workdir: wd}, nil
 }
 
 // ReadConfig reads stack configuration from ./etc directory
@@ -68,14 +64,6 @@ func (c *Controller) WriteConfig() error {
 	fpath := path.Join(c.workdir, "etc", fname)
 	log.Println("INFO", "write config", fpath)
 	return c.Config.Write(fpath)
-}
-
-func (c *Controller) AddNode(n Node) error {
-	err := c.Config.AddNode(n)
-	if err != nil {
-		return err
-	}
-	return c.WriteConfig()
 }
 
 func (c *Controller) InitStack(ctx context.Context) error {
@@ -172,6 +160,14 @@ func (c *Controller) PrintStackResources() {
 	defer c.mu.Unlock()
 	printStackResources(c.Stack)
 }
+
+// func (c *Controller) AddNode(n Node) error {
+// 	err := c.Config.AddNode(n)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	return c.WriteConfig()
+// }
 
 // func (c *Controller) GetState(ctx context.Context) error {
 // 	s := c.stack

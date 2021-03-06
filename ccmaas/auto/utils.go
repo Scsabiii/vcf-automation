@@ -29,6 +29,7 @@ import (
 	pulumistack "github.com/pulumi/pulumi/pkg/v2/resource/stack"
 	"github.com/pulumi/pulumi/sdk/v2/go/common/apitype"
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
+	"gopkg.in/yaml.v2"
 )
 
 type Resource struct {
@@ -128,4 +129,12 @@ func printResources(res map[string][]Resource, resourceURN, prefix string) {
 		log.Printf("%s %s[%s]: %s %s\n", prefix, r.Name, r.Type, r.Instance, r.ID)
 		printResources(res, r.URNName, prefix+"\t")
 	}
+}
+
+func unmarshalConfig(pluginIn, pluginOut interface{}) error {
+	b, err := yaml.Marshal(pluginIn)
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(b, pluginOut)
 }

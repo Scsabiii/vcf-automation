@@ -25,7 +25,6 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
 	"github.com/spf13/viper"
-	"gopkg.in/yaml.v2"
 )
 
 type EsxiStack struct {
@@ -42,6 +41,15 @@ type EsxiState struct {
 	SecurityGroupID  string
 }
 
+type EsxiStackProps struct {
+	Prefix           string  `yaml:"resourcePrefix"`
+	NodeSubnet       string  `yaml:"nodeSubnet"`
+	StorageSubnet    string  `yaml:"storageSubnet"`
+	ShareNetworkName string  `yaml:"shareNetworkName"`
+	Nodes            []Node  `yaml:"nodes"`
+	Shares           []Share `yaml:"shares"`
+}
+
 func InitEsxiStack(ctx context.Context, stackName, projectDir string) (EsxiStack, error) {
 	s, err := auto.UpsertStackLocalSource(ctx, stackName, projectDir)
 	if err != nil {
@@ -52,58 +60,63 @@ func InitEsxiStack(ctx context.Context, stackName, projectDir string) (EsxiStack
 
 // Config stack
 func (s EsxiStack) Configure(ctx context.Context, cfg Config) error {
-	if cfg.Props.Region == "" {
-		return fmt.Errorf("Config.Props.Region not set")
-	}
-	if cfg.Props.Domain == "" {
-		return fmt.Errorf("Config.Props.Domain not set")
-	}
-	if cfg.Props.Tenant == "" {
-		return fmt.Errorf("Config.Props.Tenant not set")
-	}
-	if cfg.Props.UserName == "" {
-		return fmt.Errorf("Config.Props.UserName not set")
-	}
-	if cfg.Props.NodeSubnet == "" {
-		return fmt.Errorf("Config.Props.NodeSubnet not set")
-	}
-	if cfg.Props.StorageSubnet == "" {
-		return fmt.Errorf("Config.Props.StorageSubnet not set")
+	o := cfg.Props.Openstack
+	p := EsxiStackProps{}
+	err := unmarshalConfig(cfg.Props.Stack, &p)
+	if err != nil {
+		return err
 	}
 
+	if o.Region == "" {
+		return fmt.Errorf("Config.Props.Openstack.Region not set")
+	}
+	if o.Domain == "" {
+		return fmt.Errorf("Config.Props.Openstack.Domain not set")
+	}
+	if o.Tenant == "" {
+		return fmt.Errorf("Config.Props.Openstack.Tenant not set")
+	}
+	if o.UserName == "" {
+		return fmt.Errorf("Config.Props.Openstack.UserName not set")
+	}
+	if p.Prefix == "" {
+		p.Prefix = cfg.Stack
+	}
+	if p.NodeSubnet == "" {
+		return fmt.Errorf("Config.Props.Stack.NodeSubnet not set")
+	}
+	if p.StorageSubnet == "" {
+		return fmt.Errorf("Config.Props.Stack.StorageSubnet not set")
+	}
+
+	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", o.Region)
 	osPassword := viper.GetString("os_password")
 	if osPassword == "" {
 		return fmt.Errorf("env variable CCMAAS_OS_PASSWORD not configured")
 	}
 
-	osRegion := cfg.Props.Region
-	osProjectDomainName := cfg.Props.Domain
-	osTenantName := cfg.Props.Tenant
-	osUserName := cfg.Props.UserName
-	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", osRegion)
-
 	// config openstack
 	s.SetConfig(ctx, "openstack:authUrl", auto.ConfigValue{Value: osAuthURL})
-	s.SetConfig(ctx, "openstack:region", auto.ConfigValue{Value: osRegion})
-	s.SetConfig(ctx, "openstack:projectDomainName", auto.ConfigValue{Value: osProjectDomainName})
-	s.SetConfig(ctx, "openstack:tenantName", auto.ConfigValue{Value: osTenantName})
-	s.SetConfig(ctx, "openstack:userDomainName", auto.ConfigValue{Value: osProjectDomainName})
-	s.SetConfig(ctx, "openstack:userName", auto.ConfigValue{Value: osUserName})
+	s.SetConfig(ctx, "openstack:region", auto.ConfigValue{Value: o.Region})
+	s.SetConfig(ctx, "openstack:projectDomainName", auto.ConfigValue{Value: o.Domain})
+	s.SetConfig(ctx, "openstack:tenantName", auto.ConfigValue{Value: o.Tenant})
+	s.SetConfig(ctx, "openstack:userDomainName", auto.ConfigValue{Value: o.Domain})
+	s.SetConfig(ctx, "openstack:userName", auto.ConfigValue{Value: o.UserName})
 	s.SetConfig(ctx, "openstack:password", auto.ConfigValue{Value: osPassword, Secret: true})
 	s.SetConfig(ctx, "openstack:insecure", auto.ConfigValue{Value: "true"})
 
-	s.SetConfig(ctx, "resourcePrefix", auto.ConfigValue{Value: cfg.Props.Prefix})
-	s.SetConfig(ctx, "nodeSubnet", auto.ConfigValue{Value: cfg.Props.NodeSubnet})
-	s.SetConfig(ctx, "storageSubnet", auto.ConfigValue{Value: cfg.Props.StorageSubnet})
-	s.SetConfig(ctx, "shareNetworkUUID", auto.ConfigValue{Value: cfg.Props.ShareNetworkName})
+	s.SetConfig(ctx, "resourcePrefix", auto.ConfigValue{Value: p.Prefix})
+	s.SetConfig(ctx, "nodeSubnet", auto.ConfigValue{Value: p.NodeSubnet})
+	s.SetConfig(ctx, "storageSubnet", auto.ConfigValue{Value: p.StorageSubnet})
+	s.SetConfig(ctx, "shareNetworkUUID", auto.ConfigValue{Value: p.ShareNetworkName})
 
-	nodes, err := json.Marshal(cfg.Props.Nodes)
+	nodes, err := json.Marshal(p.Nodes)
 	if err != nil {
 		return err
 	}
 	s.SetConfig(ctx, "nodes", auto.ConfigValue{Value: string(nodes)})
 
-	shares, err := json.Marshal(cfg.Props.Shares)
+	shares, err := json.Marshal(p.Shares)
 	if err != nil {
 		return err
 	}
@@ -152,32 +165,33 @@ func (s EsxiStack) Error() error {
 }
 
 func (s EsxiStack) GenYaml(ctx context.Context, cfg Config) ([]byte, error) {
-	outputs, err := s.Outputs(ctx)
-	if err != nil {
-		fmt.Printf("PrintYaml: %v\n", err)
-		return nil, err
-	}
-	nodes := make([]NodeOutput, len(cfg.Props.Nodes))
-	for i := 0; i < len(cfg.Props.Nodes); i++ {
-		id, err := lookupOutput(outputs, fmt.Sprintf("EsxiInstance%02dID", i))
-		if err != nil {
-			fmt.Println(err)
-			return nil, err
-		}
-		nodes[i].ID = id
-		ip, err := lookupOutput(outputs, fmt.Sprintf("EsxiInstance%02dIP", i))
-		if err != nil {
-			fmt.Println(err)
-			return nil, err
-		}
-		nodes[i].IP = ip
-	}
-	res, err := yaml.Marshal(YamlOutput{nodes})
-	if err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
-	return res, nil
+	// outputs, err := s.Outputs(ctx)
+	// if err != nil {
+	// 	fmt.Printf("PrintYaml: %v\n", err)
+	// 	return nil, err
+	// }
+	// nodes := make([]NodeOutput, len(p.Nodes))
+	// for i := 0; i < len(cfg.Props.Stack.Nodes); i++ {
+	// 	id, err := lookupOutput(outputs, fmt.Sprintf("EsxiInstance%02dID", i))
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 		return nil, err
+	// 	}
+	// 	nodes[i].ID = id
+	// 	ip, err := lookupOutput(outputs, fmt.Sprintf("EsxiInstance%02dIP", i))
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 		return nil, err
+	// 	}
+	// 	nodes[i].IP = ip
+	// }
+	// res, err := yaml.Marshal(YamlOutput{nodes})
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	return nil, err
+	// }
+	// return res, nil
+	return nil, nil
 }
 
 func lookupOutput(outputs auto.OutputMap, key string) (string, error) {

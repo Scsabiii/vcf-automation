@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 	"sync"
@@ -99,6 +100,7 @@ func Run(port int) {
 			log.Println("ERROR", err)
 			continue
 		}
+		os.Exit(0)
 	}
 
 	// start refresh/deploy loop
@@ -273,7 +275,7 @@ func InitControllerFromFile(fpath string) (*Controller, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	workdir := viper.GetString("workdir")
-	c, err := auto.NewControllerFromCfgFile(workdir, fpath)
+	c, err := auto.NewControllerFromConfigFile(workdir, fpath)
 	if err != nil {
 		return nil, err
 	}

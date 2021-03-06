@@ -27,9 +27,34 @@ import (
 
 // Config is configuration of project
 type Config struct {
-	Stack   string      `yaml:"name"`
-	Project DeployType  `yaml:"type"`
-	Props   DeployProps `yaml:"props"`
+	Stack   string     `yaml:"name"`
+	Project DeployType `yaml:"type"`
+	Props   Props      `yaml:"props"`
+}
+
+type Props struct {
+	Openstack OpenstackProps `yaml:"openstack"`
+	Stack     interface{}    `yaml:"stack"`
+}
+
+type OpenstackProps struct {
+	Region   string `yaml:"region"`
+	Domain   string `yaml:"domain"`
+	Tenant   string `yaml:"tenant"`
+	UserName string `yaml:"user"`
+	Password string
+}
+
+func ReadConfig(fpath string) (*Config, error) {
+	b, err := ioutil.ReadFile(fpath)
+	if err != nil {
+		return nil, err
+	}
+	c := Config{}
+	if err = yaml.Unmarshal(b, &c); err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 func (c *Config) Read(fpath string) error {
@@ -57,22 +82,22 @@ func (c *Config) Write(fpath string) error {
 	return ioutil.WriteFile(fpath, b, 0644)
 }
 
-func (c *Config) AddNode(n Node) error {
-	for _, nn := range c.Props.Nodes {
-		if nn.Name == n.Name {
-			return fmt.Errorf("%q: %v", n.Name, ErrNodeExists)
-		}
-	}
-	c.Props.Nodes = append(c.Props.Nodes, n)
-	return nil
-}
+// func (c *Config) AddNode(n Node) error {
+// 	for _, nn := range c.Props.Nodes {
+// 		if nn.Name == n.Name {
+// 			return fmt.Errorf("%q: %v", n.Name, ErrNodeExists)
+// 		}
+// 	}
+// 	c.Props.Nodes = append(c.Props.Nodes, n)
+// 	return nil
+// }
 
-func (c *Config) validate() error {
-	if c.Props.Domain == "" {
-		return fmt.Errorf("%q: %v", "Props.Domain", ErrStringEmpty)
-	}
-	if c.Props.Tenant == "" {
-		return fmt.Errorf("%q: %v", "Props.Tenant", ErrStringEmpty)
-	}
-	return nil
-}
+// func (c *Config) validate() error {
+// 	if c.Props.Domain == "" {
+// 		return fmt.Errorf("%q: %v", "Props.Domain", ErrStringEmpty)
+// 	}
+// 	if c.Props.Tenant == "" {
+// 		return fmt.Errorf("%q: %v", "Props.Tenant", ErrStringEmpty)
+// 	}
+// 	return nil
+// }
