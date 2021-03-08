@@ -47,7 +47,7 @@ func InitExampleStack(ctx context.Context, stackName, projectDir string) (Exampl
 }
 
 // Config set stack configuration
-func (s ExampleStack) Configure(ctx context.Context, cfg Config) error {
+func (s ExampleStack) Configure(ctx context.Context, cfg *Config) error {
 	// props := cfg.Props
 	// osRegion := props.Region
 	// osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", osRegion)
@@ -66,7 +66,7 @@ func (s ExampleStack) Configure(ctx context.Context, cfg Config) error {
 	return nil
 }
 
-func (s ExampleStack) GenYaml(ctx context.Context, cfg Config) ([]byte, error) {
+func (s ExampleStack) GenYaml(ctx context.Context, cfg *Config) ([]byte, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

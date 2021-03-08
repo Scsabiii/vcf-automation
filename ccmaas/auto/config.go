@@ -21,20 +21,21 @@ package auto
 import (
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 
 	"gopkg.in/yaml.v2"
 )
 
 // Config is configuration of project
 type Config struct {
-	Stack   string     `yaml:"name"`
-	Project DeployType `yaml:"type"`
-	Props   Props      `yaml:"props"`
+	Stack   string     `yaml:"stack" json:"stack"`
+	Project DeployType `yaml:"project" json:"project"`
+	Props   Props      `yaml:"props" json:"props"`
 }
 
 type Props struct {
-	Openstack OpenstackProps `yaml:"openstack"`
-	Stack     interface{}    `yaml:"stack"`
+	Openstack OpenstackProps `yaml:"openstack" json:"openstack"`
+	Stack     interface{}    `yaml:"stack" json:"stack"`
 }
 
 type OpenstackProps struct {
@@ -55,6 +56,21 @@ func ReadConfig(fpath string) (*Config, error) {
 		return nil, err
 	}
 	return &c, nil
+}
+
+func WriteConfig(fpath string, c *Config, overwrite bool) error {
+	if !overwrite {
+		m, _ := filepath.Glob(fpath)
+		if m != nil {
+			err := fmt.Errorf("file %q exists", fpath)
+			return err
+		}
+	}
+	b, err := yaml.Marshal(c)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(fpath, b, 0644)
 }
 
 func (c *Config) Read(fpath string) error {

@@ -26,7 +26,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"path"
 	"strings"
 	"sync"
@@ -37,17 +36,18 @@ import (
 )
 
 var (
-	newStackCh   = make(chan *auto.Config)
+	newStackCh   = make(chan *CachedController)
 	addNodeCh    = make(chan *NodeConfig)
 	addStorageCh = make(chan *StorageConfig)
 
-	mu               sync.Mutex
-	etcdir           string
-	prjdir           string
-	stackControllers StackControllers
+	mu        sync.Mutex
+	workdir   string
+	etcdir    string
+	prjdir    string
+	contCache ControllerCache
 )
 
-type StackControllers map[string]*Controller
+type ControllerCache map[string]*CachedController
 
 type NodeConfig struct {
 	project string
@@ -61,13 +61,13 @@ type StorageConfig struct {
 	storage *auto.Share
 }
 
-type Controller struct {
+type CachedController struct {
 	*auto.Controller
 	err error
 }
 
 func Run(port int) {
-	workdir := viper.GetString("workdir")
+	workdir = viper.GetString("workdir")
 	etcdir = path.Join(workdir, "etc")
 	prjdir = path.Join(workdir, "projects")
 	ctx := context.Background()
@@ -100,50 +100,40 @@ func Run(port int) {
 			log.Println("ERROR", err)
 			continue
 		}
-		os.Exit(0)
 	}
 
-	// start refresh/deploy loop
+	// start refrsh/deploy loop
 	go func() {
-		ticker := time.Tick(1 * time.Minute)
+		ticker := time.Tick(5 * time.Minute)
+		log.Println("start deploy loop")
 		for {
 
 			// first refresh then update stack
-			for _, c := range stackControllers {
-				log.Printf("INFO === stack \"%s-%s\"", c.Project, c.Stack)
+			for _, l := range contCache {
+				log.Println("INFO ===", "refresh and update stack", l.Project, l.Stack)
 				log.Println("INFO", "refreshing")
-				err = c.Refresh(ctx)
+				err = l.Refresh(ctx)
 				if err != nil {
 					log.Println("ERROR", err)
 					continue
 				}
 				log.Println("INFO", "updating")
-				err = c.Update(ctx)
+				err = l.Update(ctx)
 				if err != nil {
 					log.Println("ERROR", err)
 					continue
 				}
 				log.Println("INFO", "resources:")
-				c.PrintStackResources()
+				l.PrintStackResources()
 			}
 
 			select {
-			case s := <-newStackCh:
-				c, err := InitController(s)
+			case l := <-newStackCh:
+				log.Println("INFO ===", "new stack created", l.Project, l.Stack)
+				log.Println("INFO", "updating")
+				err = l.Update(ctx)
 				if err != nil {
-					log.Println("ERROR", err)
-					continue
-				}
-				ctx := context.Background()
-				err = c.InitStack(ctx)
-				if err != nil {
-					c.err = err
-					log.Println("ERROR", err)
-					continue
-				}
-				err = c.Update(ctx)
-				if err != nil {
-					c.err = err
+					l.err = err
 					log.Println("ERROR", err)
 					continue
 				}
@@ -164,7 +154,7 @@ func Run(port int) {
 
 	r := mux.NewRouter()
 	r.Headers("Content-Type", "application/json")
-	r.HandleFunc("/{project}/{stack}/new", newStack).Methods("POST")
+	r.HandleFunc("/new", newStack).Methods("POST")
 	r.HandleFunc("/{project}/{stack}/addnode", addNode).Methods("POST")
 	r.HandleFunc("/{project}/{stack}/addstorage", addStorage).Methods("POST")
 	r.HandleFunc("/{project}/{stack}/state", getState).Methods("GET")
@@ -178,20 +168,38 @@ func newStack(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 
-	vars := mux.Vars(r)
-	c := auto.Config{
-		Stack:   vars["stack"],
-		Project: auto.DeployType(vars["project"]),
+	// decode and validate payload as auto.Config
+	c := auto.Config{}
+	err := decoder.Decode(&c)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
 	}
-	err := decoder.Decode(&c.Props)
+	if c.Project == "" {
+		err = fmt.Errorf("project not set")
+		handleError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if c.Project != auto.DeployEsxi && c.Project != auto.DeployExample {
+		err = fmt.Errorf("project %q not supported", c.Project)
+		handleError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if c.Stack == "" {
+		err = fmt.Errorf("stack not set")
+		handleError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+
+	// TODO: timeout
+	l, err := InitController(&c)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	// TODO: timeout
-	// send stack config to process loop
-	newStackCh <- &c
+	// send stack controller to process loop
+	newStackCh <- l
 
 	// request is ok;
 	w.WriteHeader(http.StatusOK)
@@ -244,7 +252,7 @@ func getState(w http.ResponseWriter, r *http.Request) {
 	project := vars["project"]
 	stack := vars["stack"]
 	key := fmt.Sprintf("%s-%s", project, stack)
-	if c, ok := stackControllers[key]; ok {
+	if c, ok := contCache[key]; ok {
 		if c.err != nil {
 			handleError(w, http.StatusInternalServerError, c.err)
 			return
@@ -260,8 +268,8 @@ func getState(w http.ResponseWriter, r *http.Request) {
 func handleError(w http.ResponseWriter, statusCode int, e error) {
 	w.WriteHeader(statusCode)
 	msg := fmt.Sprintf("%d - %s", statusCode, e)
-	w.Write([]byte(msg))
-	fmt.Println("ERROR", msg)
+	log.Println("ERROR", msg)
+	json.NewEncoder(w).Encode(msg)
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {
@@ -271,41 +279,53 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func InitControllerFromFile(fpath string) (*Controller, error) {
+func InitControllerFromFile(fpath string) (*CachedController, error) {
 	mu.Lock()
 	defer mu.Unlock()
-	workdir := viper.GetString("workdir")
-	c, err := auto.NewControllerFromConfigFile(workdir, fpath)
+	c, err := auto.NewControllerFromConfigFile(prjdir, fpath)
 	if err != nil {
 		return nil, err
 	}
-	if stackControllers == nil {
-		stackControllers = make(StackControllers)
+	if contCache == nil {
+		contCache = make(ControllerCache)
 	}
-	s := Controller{c, nil}
-	key := fmt.Sprintf("%s-%s", c.Project, c.Stack)
-	stackControllers[key] = &s
+	s := CachedController{c, nil}
+	fname := fmt.Sprintf("%s-%s.yaml", c.Project, c.Stack)
+	contCache[fname] = &s
 	return &s, nil
 }
 
-func InitController(cfg *auto.Config) (*Controller, error) {
+func InitController(cfg *auto.Config) (c *CachedController, err error) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	workdir := viper.GetString("workdir")
-	project := string(cfg.Project)
-	stack := cfg.Stack
-	c, err := auto.NewController(workdir, project, stack)
+	// create and initialize controller
+	ctx := context.Background()
+	l := auto.Controller{Config: cfg, ProjectDir: prjdir}
+	err = l.InitStack(ctx)
 	if err != nil {
-		return nil, err
+		return
 	}
-	if stackControllers == nil {
-		stackControllers = make(StackControllers)
+	err = l.Configure(ctx)
+	if err != nil {
+		return
 	}
-	s := Controller{c, nil}
-	key := fmt.Sprintf("%s-%s", c.Project, c.Stack)
-	stackControllers[key] = &s
-	return &s, nil
+
+	// write cfg file to disk
+	fname := fmt.Sprintf("%s-%s.yaml", l.Project, l.Stack)
+	fpath := path.Join(etcdir, fname)
+	err = auto.WriteConfig(fpath, cfg, false)
+	if err != nil {
+		return
+	}
+
+	// cache controller
+	if contCache == nil {
+		contCache = make(ControllerCache)
+	}
+	c = &CachedController{&l, nil}
+	contCache[fname] = c
+	return
 }
 
 func extractProjectStack(fname string) (project, stack string, err error) {

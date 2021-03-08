@@ -21,6 +21,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"path"
 
 	"ccmaas/auto"
 
@@ -41,9 +42,13 @@ var deployCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
-		workDir := viper.GetString("workdir")
+		workdir := viper.GetString("workdir")
+		prjdir := path.Join(workdir, "projects")
+		etcdir := path.Join(workdir, "etc")
 		project, stack := extractProjectStack(args)
-		c, err := auto.NewController(workDir, project, stack)
+		fname := fmt.Sprintf("%s-%s.yaml", project, stack)
+		fpath := path.Join(etcdir, fname)
+		c, err := auto.NewControllerFromConfigFile(prjdir, fpath)
 		if err != nil {
 			logErrorAndExit(err)
 		}

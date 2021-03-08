@@ -59,7 +59,7 @@ func InitEsxiStack(ctx context.Context, stackName, projectDir string) (EsxiStack
 }
 
 // Config stack
-func (s EsxiStack) Configure(ctx context.Context, cfg Config) error {
+func (s EsxiStack) Configure(ctx context.Context, cfg *Config) error {
 	o := cfg.Props.Openstack
 	p := EsxiStackProps{}
 	err := unmarshalConfig(cfg.Props.Stack, &p)
@@ -164,7 +164,7 @@ func (s EsxiStack) Error() error {
 	return s.state.err
 }
 
-func (s EsxiStack) GenYaml(ctx context.Context, cfg Config) ([]byte, error) {
+func (s EsxiStack) GenYaml(ctx context.Context, cfg *Config) ([]byte, error) {
 	// outputs, err := s.Outputs(ctx)
 	// if err != nil {
 	// 	fmt.Printf("PrintYaml: %v\n", err)

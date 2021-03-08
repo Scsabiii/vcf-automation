@@ -26,8 +26,8 @@ import (
 
 type Stack interface {
 	Workspace() auto.Workspace
-	Configure(context.Context, Config) error
-	GenYaml(context.Context, Config) ([]byte, error)
+	Configure(context.Context, *Config) error
+	GenYaml(context.Context, *Config) ([]byte, error)
 
 	Refresh(context.Context) error
 	Update(context.Context) error

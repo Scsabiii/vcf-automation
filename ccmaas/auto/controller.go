@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
-	"path"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -14,56 +12,40 @@ import (
 )
 
 type Controller struct {
-	Config
-	workdir string
-	stack   Stack
-	mu      sync.Mutex
+	*Config
+	ProjectDir string
+	stack      Stack
+	mu         sync.Mutex
 }
 
-func NewController(workdir, project, stack string) (c *Controller, err error) {
-	// c = &Controller{workdir: workdir, stack: nil}
-	// if project != "esxi" && project != "example" {
-	// 	err = fmt.Errorf("project must be one of %q and %q", "esxi", "example")
-	// 	return
-	// }
+// func NewController(workdir, project, stack string) (c *Controller, err error) {
+// c = &Controller{workdir: workdir, stack: nil}
+// if project != "esxi" && project != "example" {
+// 	err = fmt.Errorf("project must be one of %q and %q", "esxi", "example")
+// 	return
+// }
 
-	// if err = c.ReadConfig(project, stack); err != nil {
-	// 	if errors.Is(err, os.ErrNotExist) {
-	// 		log.Println("WARN", "config does not exist")
-	// 		log.Println("INFO", "create new config")
-	// 		c.Config = Config{
-	// 			Stack:   stack,
-	// 			Project: DeployType(project),
-	// 			Props:   DeployProps{Prefix: stack},
-	// 		}
-	// 		err = c.WriteConfig()
-	// 	}
-	// }
-	return
-}
+// if err = c.ReadConfig(project, stack); err != nil {
+// 	if errors.Is(err, os.ErrNotExist) {
+// 		log.Println("WARN", "config does not exist")
+// 		log.Println("INFO", "create new config")
+// 		c.Config = Config{
+// 			Stack:   stack,
+// 			Project: DeployType(project),
+// 			Props:   DeployProps{Prefix: stack},
+// 		}
+// 		err = c.WriteConfig()
+// 	}
+// }
+// return
+// }
 
-func NewControllerFromConfigFile(wd, fpath string) (*Controller, error) {
+func NewControllerFromConfigFile(pd, fpath string) (*Controller, error) {
 	c, err := ReadConfig(fpath)
 	if err != nil {
 		return nil, err
 	}
-	return &Controller{Config: *c, workdir: wd}, nil
-}
-
-// ReadConfig reads stack configuration from ./etc directory
-func (c *Controller) ReadConfig(project, stack string) error {
-	fname := fmt.Sprintf("%s-%s.yaml", project, stack)
-	fpath := path.Join(c.workdir, "etc", fname)
-	log.Println("INFO", "load config", fpath)
-	return c.Config.Read(fpath)
-}
-
-// WriteConfig writes config file in ./etc directory
-func (c *Controller) WriteConfig() error {
-	fname := fmt.Sprintf("%s-%s.yaml", c.Project, c.Stack)
-	fpath := path.Join(c.workdir, "etc", fname)
-	log.Println("INFO", "write config", fpath)
-	return c.Config.Write(fpath)
+	return &Controller{Config: c, ProjectDir: pd}, nil
 }
 
 func (c *Controller) InitStack(ctx context.Context) error {
@@ -71,7 +53,7 @@ func (c *Controller) InitStack(ctx context.Context) error {
 	defer c.mu.Unlock()
 	switch DeployType(c.Project) {
 	case DeployExample:
-		projectDir := filepath.Join(c.workdir, "projects", "example-go")
+		projectDir := filepath.Join(c.ProjectDir, "example-go")
 		if s, err := InitExampleStack(ctx, c.Stack, projectDir); err != nil {
 			return err
 		} else {
@@ -79,7 +61,7 @@ func (c *Controller) InitStack(ctx context.Context) error {
 		}
 
 	case DeployEsxi:
-		projectDir := filepath.Join(c.workdir, "projects", "esxi")
+		projectDir := filepath.Join(c.ProjectDir, "esxi")
 		stackName := c.Stack
 		s, err := InitEsxiStack(ctx, stackName, projectDir)
 		if err != nil {

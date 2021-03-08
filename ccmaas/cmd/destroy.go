@@ -21,6 +21,8 @@ package cmd
 import (
 	"ccmaas/auto"
 	"context"
+	"fmt"
+	"path"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -32,10 +34,14 @@ var destroyCmd = &cobra.Command{
 	Long:  `Provision CCI project (installing ESXi nodes)`,
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		var ctx = context.Background()
-		var workDir = viper.GetString("workdir")
+		ctx := context.Background()
+		workdir := viper.GetString("workdir")
+		prjdir := path.Join(workdir, "projects")
+		etcdir := path.Join(workdir, "etc")
 		project, stack := extractProjectStack(args)
-		c, err := auto.NewController(workDir, project, stack)
+		fname := fmt.Sprintf("%s-%s.yaml", project, stack)
+		fpath := path.Join(etcdir, fname)
+		c, err := auto.NewControllerFromConfigFile(prjdir, fpath)
 		if err != nil {
 			logErrorAndExit(err)
 		}
