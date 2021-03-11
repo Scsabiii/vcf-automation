@@ -1,4 +1,4 @@
-module ccmaas
+module github.com/sapcc/avacado-automation
 
 go 1.15
 

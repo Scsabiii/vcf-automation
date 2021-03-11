@@ -18,9 +18,7 @@
 
 package main
 
-import (
-	"ccmaas/cmd"
-)
+import "github.com/sapcc/avacado-automation/ccmaas/cmd"
 
 func main() {
 	cmd.Execute()

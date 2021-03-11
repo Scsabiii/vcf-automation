@@ -19,7 +19,6 @@
 package server
 
 import (
-	"ccmaas/auto"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -31,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/sapcc/avacado-automation/ccmaas/auto"
 	"github.com/spf13/viper"
 )
 

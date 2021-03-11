@@ -19,11 +19,11 @@
 package cmd
 
 import (
-	"ccmaas/auto"
 	"context"
 	"fmt"
 	"path"
 
+	"github.com/sapcc/avacado-automation/ccmaas/auto"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

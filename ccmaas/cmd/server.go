@@ -19,10 +19,9 @@
 package cmd
 
 import (
+	"github.com/sapcc/avacado-automation/ccmaas/server"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
-	"ccmaas/server"
 )
 
 // serveCmd represents the serve command

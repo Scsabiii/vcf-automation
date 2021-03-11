@@ -19,12 +19,13 @@
 package server
 
 import (
-	"ccmaas/auto"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/sapcc/avacado-automation/ccmaas/auto"
 )
 
 func newStackHandler(w http.ResponseWriter, r *http.Request) {
