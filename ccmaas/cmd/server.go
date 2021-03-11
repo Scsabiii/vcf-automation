@@ -19,8 +19,6 @@
 package cmd
 
 import (
-	"log"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -37,7 +35,6 @@ var serveCmd = &cobra.Command{
 		if port == 0 {
 			port = 8080
 		}
-		log.Printf("ccmaas server listening on port %d\n", port)
 		server.Run(port)
 	},
 }

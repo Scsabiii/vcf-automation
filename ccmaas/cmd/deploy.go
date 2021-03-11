@@ -72,7 +72,7 @@ var deployCmd = &cobra.Command{
 			// 	fmt.Println("-------")
 			// 	fmt.Println(string(yamlOutput))
 		} else {
-			if err := c.Update(ctx); err != nil {
+			if err := c.UpdateStack(ctx); err != nil {
 				logErrorAndExit(err)
 			}
 		}

@@ -50,6 +50,19 @@ type EsxiStackProps struct {
 	Shares           []Share `yaml:"shares"`
 }
 
+type Node struct {
+	Name   string `yaml:"name"`
+	UUID   string `yaml:"uuid"`
+	IP     string `yaml:"ip"`
+	Image  string `yaml:"image"`
+	Flavor string `yaml:"flavor"`
+}
+
+type Share struct {
+	Name string `yaml:"name"`
+	Size int    `yaml:"size"`
+}
+
 func InitEsxiStack(ctx context.Context, stackName, projectDir string) (EsxiStack, error) {
 	s, err := auto.UpsertStackLocalSource(ctx, stackName, projectDir)
 	if err != nil {
@@ -60,13 +73,12 @@ func InitEsxiStack(ctx context.Context, stackName, projectDir string) (EsxiStack
 
 // Config stack
 func (s EsxiStack) Configure(ctx context.Context, cfg *Config) error {
-	o := cfg.Props.Openstack
+	o := cfg.Props.OpenstackProps
 	p := EsxiStackProps{}
-	err := unmarshalConfig(cfg.Props.Stack, &p)
+	err := getStackPropsFromConfig(cfg, &p)
 	if err != nil {
 		return err
 	}
-
 	if o.Region == "" {
 		return fmt.Errorf("Config.Props.Openstack.Region not set")
 	}
@@ -75,9 +87,6 @@ func (s EsxiStack) Configure(ctx context.Context, cfg *Config) error {
 	}
 	if o.Tenant == "" {
 		return fmt.Errorf("Config.Props.Openstack.Tenant not set")
-	}
-	if o.UserName == "" {
-		return fmt.Errorf("Config.Props.Openstack.UserName not set")
 	}
 	if p.Prefix == "" {
 		p.Prefix = cfg.Stack
@@ -90,38 +99,48 @@ func (s EsxiStack) Configure(ctx context.Context, cfg *Config) error {
 	}
 
 	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", o.Region)
+	osUsername := viper.GetString("os_username")
+	if osUsername == "" {
+		return fmt.Errorf("env variable CCMAAS_OS_USERNAME not configured")
+	}
 	osPassword := viper.GetString("os_password")
 	if osPassword == "" {
 		return fmt.Errorf("env variable CCMAAS_OS_PASSWORD not configured")
 	}
 
 	// config openstack
-	s.SetConfig(ctx, "openstack:authUrl", auto.ConfigValue{Value: osAuthURL})
-	s.SetConfig(ctx, "openstack:region", auto.ConfigValue{Value: o.Region})
-	s.SetConfig(ctx, "openstack:projectDomainName", auto.ConfigValue{Value: o.Domain})
-	s.SetConfig(ctx, "openstack:tenantName", auto.ConfigValue{Value: o.Tenant})
-	s.SetConfig(ctx, "openstack:userDomainName", auto.ConfigValue{Value: o.Domain})
-	s.SetConfig(ctx, "openstack:userName", auto.ConfigValue{Value: o.UserName})
-	s.SetConfig(ctx, "openstack:password", auto.ConfigValue{Value: osPassword, Secret: true})
-	s.SetConfig(ctx, "openstack:insecure", auto.ConfigValue{Value: "true"})
+	c := auto.ConfigMap{
+		"openstack:authUrl":           auto.ConfigValue{Value: osAuthURL},
+		"openstack:region":            auto.ConfigValue{Value: o.Region},
+		"openstack:projectDomainName": auto.ConfigValue{Value: o.Domain},
+		"openstack:tenantName":        auto.ConfigValue{Value: o.Tenant},
+		"openstack:userDomainName":    auto.ConfigValue{Value: o.Domain},
+		"openstack:userName":          auto.ConfigValue{Value: osUsername},
+		"openstack:password":          auto.ConfigValue{Value: osPassword, Secret: true},
+		"openstack:insecure":          auto.ConfigValue{Value: "true"},
+	}
+	s.SetAllConfig(ctx, c)
 
+	// set project settings
 	s.SetConfig(ctx, "resourcePrefix", auto.ConfigValue{Value: p.Prefix})
 	s.SetConfig(ctx, "nodeSubnet", auto.ConfigValue{Value: p.NodeSubnet})
 	s.SetConfig(ctx, "storageSubnet", auto.ConfigValue{Value: p.StorageSubnet})
 	s.SetConfig(ctx, "shareNetworkUUID", auto.ConfigValue{Value: p.ShareNetworkName})
-
 	nodes, err := json.Marshal(p.Nodes)
 	if err != nil {
 		return err
 	}
 	s.SetConfig(ctx, "nodes", auto.ConfigValue{Value: string(nodes)})
-
 	shares, err := json.Marshal(p.Shares)
 	if err != nil {
 		return err
 	}
 	s.SetConfig(ctx, "shares", auto.ConfigValue{Value: string(shares)})
 
+	return nil
+}
+
+func (s EsxiStack) UpdateConfig(ctx context.Context, payload *EsxiStackProps) error {
 	return nil
 }
 

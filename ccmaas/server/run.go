@@ -21,13 +21,12 @@ package server
 import (
 	"ccmaas/auto"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"path"
-	"strings"
 	"sync"
 	"time"
 
@@ -36,308 +35,162 @@ import (
 )
 
 var (
-	newStackCh   = make(chan *CachedController)
-	addNodeCh    = make(chan *NodeConfig)
-	addStorageCh = make(chan *StorageConfig)
-
-	mu        sync.Mutex
-	workdir   string
-	etcdir    string
-	prjdir    string
-	contCache ControllerCache
+	workdir  string
+	cfgpath  string
+	prjpath  string
+	mgrCache ManagerCache
+	stackCh  chan *StackManager
+	mu       sync.Mutex
 )
 
-type ControllerCache map[string]*CachedController
+type ManagerCache map[string]*StackManager
 
-type NodeConfig struct {
-	project string
-	stack   string
-	node    *auto.Node
-}
-
-type StorageConfig struct {
-	project string
-	stack   string
-	storage *auto.Share
-}
-
-type CachedController struct {
+type StackManager struct {
 	*auto.Controller
 	err error
 }
 
 func Run(port int) {
+	stackCh = make(chan *StackManager)
 	workdir = viper.GetString("workdir")
-	etcdir = path.Join(workdir, "etc")
-	prjdir = path.Join(workdir, "projects")
-	ctx := context.Background()
+	cfgpath = path.Join(workdir, "etc")
+	prjpath = path.Join(workdir, "projects")
 
 	// read configuration files and initialize controllers
-	log.Println("INFO", "read configuration in directory", etcdir)
-	files, err := ioutil.ReadDir(etcdir)
+	log.Println("INFO", "read configuration in directory", cfgpath)
+	files, err := ioutil.ReadDir(cfgpath)
 	if err != nil {
 		log.Panic(err)
 	}
-	for _, f := range files {
-		fpath := path.Join(etcdir, f.Name())
-		log.Println("INFO", "===", fpath)
-		log.Println("INFO", "init controller")
-		c, err := InitControllerFromFile(fpath)
-		if err != nil {
-			log.Println("ERROR", err)
-			continue
-		}
-		log.Printf("INFO init stack %q in project %q", c.Stack, c.Project)
-		err = c.InitStack(ctx)
-		if err != nil {
-			log.Println("ERROR", err)
-			c.err = err
-			continue
-		}
-		log.Println("INFO", "configure stack")
-		err = c.Configure(ctx)
-		if err != nil {
-			log.Println("ERROR", err)
-			continue
-		}
-	}
+	initialize(files)
 
 	// start refrsh/deploy loop
-	go func() {
-		ticker := time.Tick(5 * time.Minute)
-		log.Println("start deploy loop")
-		for {
+	log.Println("INFO", "go run loop")
+	go run()
 
-			// first refresh then update stack
-			for _, l := range contCache {
-				log.Println("INFO ===", "refresh and update stack", l.Project, l.Stack)
-				log.Println("INFO", "refreshing")
-				err = l.Refresh(ctx)
-				if err != nil {
-					log.Println("ERROR", err)
-					continue
-				}
-				log.Println("INFO", "updating")
-				err = l.Update(ctx)
-				if err != nil {
-					log.Println("ERROR", err)
-					continue
-				}
-				log.Println("INFO", "resources:")
-				l.PrintStackResources()
-			}
-
-			select {
-			case l := <-newStackCh:
-				log.Println("INFO ===", "new stack created", l.Project, l.Stack)
-				log.Println("INFO", "updating")
-				err = l.Update(ctx)
-				if err != nil {
-					l.err = err
-					log.Println("ERROR", err)
-					continue
-				}
-
-			case <-addNodeCh:
-				// err = c.AddNode(n)
-				// if err != nil {
-				// 	handleError(w, http.StatusInternalServerError, err)
-				// 	return
-				// }
-
-			case <-addStorageCh:
-			case <-ticker:
-			}
-
-		}
-	}()
-
+	// http server
+	log.Printf("INFO listening on port %d\n", port)
 	r := mux.NewRouter()
 	r.Headers("Content-Type", "application/json")
-	r.HandleFunc("/new", newStack).Methods("POST")
-	r.HandleFunc("/{project}/{stack}/addnode", addNode).Methods("POST")
-	r.HandleFunc("/{project}/{stack}/addstorage", addStorage).Methods("POST")
+	r.HandleFunc("/new", newStackHandler).Methods("POST")
+	r.HandleFunc("/update", updateStackHandler).Methods("POST")
 	r.HandleFunc("/{project}/{stack}/state", getState).Methods("GET")
 	r.Use(loggingMiddleware)
-
 	http.Handle("/", r)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil))
 }
 
-func newStack(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
-	defer r.Body.Close()
-
-	// decode and validate payload as auto.Config
-	c := auto.Config{}
-	err := decoder.Decode(&c)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if c.Project == "" {
-		err = fmt.Errorf("project not set")
-		handleError(w, http.StatusUnprocessableEntity, err)
-		return
-	}
-	if c.Project != auto.DeployEsxi && c.Project != auto.DeployExample {
-		err = fmt.Errorf("project %q not supported", c.Project)
-		handleError(w, http.StatusUnprocessableEntity, err)
-		return
-	}
-	if c.Stack == "" {
-		err = fmt.Errorf("stack not set")
-		handleError(w, http.StatusUnprocessableEntity, err)
-		return
-	}
-
-	// TODO: timeout
-	l, err := InitController(&c)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	// send stack controller to process loop
-	newStackCh <- l
-
-	// request is ok;
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(c)
-}
-
-func addNode(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
-	defer r.Body.Close()
-	vars := mux.Vars(r)
-	n := auto.Node{}
-	err := decoder.Decode(&n)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
-	}
-	node := NodeConfig{
-		project: vars["project"],
-		stack:   vars["stack"],
-		node:    &n,
-	}
-	addNodeCh <- &node
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(n)
-}
-
-func addStorage(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
-	defer r.Body.Close()
-	vars := mux.Vars(r)
-	s := auto.Share{}
-	err := decoder.Decode(&s)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
-	}
-	storage := StorageConfig{
-		project: vars["project"],
-		stack:   vars["stack"],
-		storage: &s,
-	}
-	addStorageCh <- &storage
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(s)
-}
-
-func getState(w http.ResponseWriter, r *http.Request) {
-	log.Println("INFO", "handling", r.URL)
-	vars := mux.Vars(r)
-	project := vars["project"]
-	stack := vars["stack"]
-	key := fmt.Sprintf("%s-%s", project, stack)
-	if c, ok := contCache[key]; ok {
-		if c.err != nil {
-			handleError(w, http.StatusInternalServerError, c.err)
-			return
-		}
-		err := c.Controller.RuntimeError()
+func initialize(files []os.FileInfo) {
+	ctx := context.Background()
+	for _, f := range files {
+		log.Println("INFO", "===", f.Name())
+		m, err := newManagerFromConfigFile(f.Name())
 		if err != nil {
-			handleError(w, http.StatusInternalServerError, err)
-			return
+			log.Println("ERROR", err)
+			continue
+		}
+		log.Printf("INFO init stack %q in project %q", m.Stack, m.Project)
+		err = m.InitStack(ctx)
+		if err != nil {
+			log.Println("ERROR", err)
+			m.err = err
+			continue
+		}
+		log.Println("INFO", "configure stack")
+		err = m.ConfigureStack(ctx)
+		if err != nil {
+			log.Println("ERROR", err)
+			continue
 		}
 	}
 }
 
-func handleError(w http.ResponseWriter, statusCode int, e error) {
-	w.WriteHeader(statusCode)
-	msg := fmt.Sprintf("%d - %s", statusCode, e)
-	log.Println("ERROR", msg)
-	json.NewEncoder(w).Encode(msg)
+func run() {
+	log.Println("start deploy loop")
+	ctx := context.Background()
+	ticker := time.Tick(5 * time.Minute)
+	for {
+		// Refresh and update all managed stacks
+		for _, m := range mgrCache {
+			log.Println("INFO ===", "refresh and update stack", m.Project, m.Stack)
+			log.Println("INFO", "refreshing")
+			err := m.RefreshStack(ctx)
+			if err != nil {
+				log.Println("ERROR", err)
+				continue
+			}
+			log.Println("INFO", "updating")
+			err = m.UpdateStack(ctx)
+			if err != nil {
+				log.Println("ERROR", err)
+				continue
+			}
+			log.Println("INFO", "resources:")
+			m.PrintStackResources()
+		}
+
+		select {
+		case m := <-stackCh:
+			// Configure stack when stack is created or updated
+			log.Println("INFO", "configure stack")
+			err := m.ConfigureStack(ctx)
+			if err != nil {
+				m.err = err
+				log.Println("ERROR", err)
+				return
+			}
+		case <-ticker:
+		}
+	}
 }
 
-func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// fmt.Println(r.Method, r.RequestURI)
-		next.ServeHTTP(w, r)
-	})
-}
-
-func InitControllerFromFile(fpath string) (*CachedController, error) {
+func getManager(fname string) (*StackManager, error) {
 	mu.Lock()
 	defer mu.Unlock()
-	c, err := auto.NewControllerFromConfigFile(prjdir, fpath)
+	if mgrCache == nil {
+		return nil, fmt.Errorf("no manager: %s", fname)
+	}
+	if s, ok := mgrCache[fname]; !ok {
+		return nil, fmt.Errorf("no manager: %s", fname)
+	} else {
+		return s, nil
+	}
+}
+
+func newManagerFromConfig(cfg *auto.Config) (*StackManager, error) {
+	mu.Lock()
+	defer mu.Unlock()
+	ctx := context.Background()
+	// create and initialize controller
+	l, err := auto.NewController(prjpath, cfgpath, cfg)
 	if err != nil {
 		return nil, err
 	}
-	if contCache == nil {
-		contCache = make(ControllerCache)
-	}
-	s := CachedController{c, nil}
-	fname := fmt.Sprintf("%s-%s.yaml", c.Project, c.Stack)
-	contCache[fname] = &s
-	return &s, nil
-}
-
-func InitController(cfg *auto.Config) (c *CachedController, err error) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	// create and initialize controller
-	ctx := context.Background()
-	l := auto.Controller{Config: cfg, ProjectDir: prjdir}
+	// initialize stack
 	err = l.InitStack(ctx)
 	if err != nil {
-		return
+		return nil, err
 	}
-	err = l.Configure(ctx)
-	if err != nil {
-		return
+	if mgrCache == nil {
+		mgrCache = make(ManagerCache)
 	}
-
-	// write cfg file to disk
-	fname := fmt.Sprintf("%s-%s.yaml", l.Project, l.Stack)
-	fpath := path.Join(etcdir, fname)
-	err = auto.WriteConfig(fpath, cfg, false)
-	if err != nil {
-		return
-	}
-
-	// cache controller
-	if contCache == nil {
-		contCache = make(ControllerCache)
-	}
-	c = &CachedController{&l, nil}
-	contCache[fname] = c
-	return
+	m := StackManager{l, nil}
+	mgrCache[l.FileName()] = &m
+	return &m, nil
 }
 
-func extractProjectStack(fname string) (project, stack string, err error) {
-	if strings.HasSuffix(fname, ".yaml") {
-		fname = fname[0 : len(fname)-5]
-		projectStackNames := strings.Split(fname, "-")
-		if len(projectStackNames) == 2 {
-			project = projectStackNames[0]
-			stack = projectStackNames[1]
-			return
-		}
+func newManagerFromConfigFile(fname string) (*StackManager, error) {
+	mu.Lock()
+	defer mu.Unlock()
+	fpath := path.Join(cfgpath, fname)
+	l, err := auto.NewControllerFromConfigFile(prjpath, fpath)
+	if err != nil {
+		return nil, err
 	}
-	err = fmt.Errorf("not a configuration file: %q", fname)
-	return
+	if mgrCache == nil {
+		mgrCache = make(ManagerCache)
+	}
+	m := StackManager{l, nil}
+	mgrCache[l.FileName()] = &m
+	return &m, nil
 }

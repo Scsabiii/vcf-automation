@@ -2,93 +2,120 @@ package auto
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"path"
 	"path/filepath"
-	"strconv"
 	"sync"
-
-	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
 )
 
 type Controller struct {
 	*Config
-	ProjectDir string
-	stack      Stack
-	mu         sync.Mutex
+	ConfigFile  string
+	ProjectPath string
+	stack       Stack
+	mu          sync.Mutex
 }
 
-// func NewController(workdir, project, stack string) (c *Controller, err error) {
-// c = &Controller{workdir: workdir, stack: nil}
-// if project != "esxi" && project != "example" {
-// 	err = fmt.Errorf("project must be one of %q and %q", "esxi", "example")
-// 	return
-// }
-
-// if err = c.ReadConfig(project, stack); err != nil {
-// 	if errors.Is(err, os.ErrNotExist) {
-// 		log.Println("WARN", "config does not exist")
-// 		log.Println("INFO", "create new config")
-// 		c.Config = Config{
-// 			Stack:   stack,
-// 			Project: DeployType(project),
-// 			Props:   DeployProps{Prefix: stack},
-// 		}
-// 		err = c.WriteConfig()
-// 	}
-// }
-// return
-// }
-
-func NewControllerFromConfigFile(pd, fpath string) (*Controller, error) {
-	c, err := ReadConfig(fpath)
+// NewController creates controller with given Config c, and writes the config to disk
+func NewController(ppath, cpath string, c *Config) (*Controller, error) {
+	l := Controller{
+		ProjectPath: ppath,
+		ConfigFile:  path.Join(cpath, c.FileName()),
+		Config:      c}
+	err := writeConfig(l.ConfigFile, c, false)
 	if err != nil {
 		return nil, err
 	}
-	return &Controller{Config: c, ProjectDir: pd}, nil
+	return &l, nil
 }
 
-func (c *Controller) InitStack(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	switch DeployType(c.Project) {
+// NewControllerFromConfigFile reads configuration file (fname) in the
+// configuration directory (cpath), and creates controller from it.
+func NewControllerFromConfigFile(prjpath, cfgfilepath string) (*Controller, error) {
+	c, err := readConfig(cfgfilepath)
+	if err != nil {
+		return nil, err
+	}
+	if !isValidProject(c.Project) {
+		return nil, fmt.Errorf("project not suported: %q", c.Project)
+	}
+	l := Controller{
+		Config:      c,
+		ProjectPath: prjpath,
+		ConfigFile:  cfgfilepath,
+	}
+	return &l, nil
+}
+
+// UpdateConfig updates Props.StackProps field of the controller's Config with
+// the given Config s. The updated Config is written to the configuration file
+// on disk.
+func (l *Controller) UpdateConfig(s *Config) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.Config.Project != s.Project {
+		return fmt.Errorf("unmatched project")
+	}
+	if l.Config.Stack != s.Stack {
+		return fmt.Errorf("unmatched stack")
+	}
+	nc, err := MergeStackPropsToConfig(l.Config, s.Props.StackProps)
+	if err != nil {
+		return err
+	}
+	err = writeConfig(l.ConfigFile, nc, true)
+	if err != nil {
+		return err
+	}
+	l.Config = nc
+	return nil
+}
+
+// RuntimeError returns error thrown when refresh/update/destroy stack
+func (c *Controller) RuntimeError() error {
+	return c.stack.Error()
+}
+
+func (l *Controller) InitStack(ctx context.Context) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	switch ProjectType(l.Project) {
 	case DeployExample:
-		projectDir := filepath.Join(c.ProjectDir, "example-go")
-		if s, err := InitExampleStack(ctx, c.Stack, projectDir); err != nil {
+		projectDir := filepath.Join(l.ProjectPath, "example-go")
+		if s, err := InitExampleStack(ctx, l.Stack, projectDir); err != nil {
 			return err
 		} else {
-			c.stack = s
+			l.stack = s
 		}
-
 	case DeployEsxi:
-		projectDir := filepath.Join(c.ProjectDir, "esxi")
-		stackName := c.Stack
+		projectDir := filepath.Join(l.ProjectPath, "esxi")
+		stackName := l.Stack
 		s, err := InitEsxiStack(ctx, stackName, projectDir)
 		if err != nil {
 			return err
 		}
-		c.stack = s
+		l.stack = s
 
 	default:
-		return fmt.Errorf("project %q: %v", c.Project, ErrNotSupported)
+		return fmt.Errorf("project %q: %v", l.Project, ErrNotSupported)
 	}
 
 	return nil
 }
 
-func (c *Controller) Configure(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.stack == nil {
+func (l *Controller) ConfigureStack(ctx context.Context) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.stack == nil {
 		return fmt.Errorf("stack uninitialized")
 	}
-	if err := c.stack.Configure(ctx, c.Config); err != nil {
+	if err := l.stack.Configure(ctx, l.Config); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *Controller) Refresh(ctx context.Context) error {
+func (c *Controller) RefreshStack(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.stack == nil {
@@ -100,7 +127,7 @@ func (c *Controller) Refresh(ctx context.Context) error {
 	return nil
 }
 
-func (c *Controller) Update(ctx context.Context) error {
+func (c *Controller) UpdateStack(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.stack == nil {
@@ -112,7 +139,7 @@ func (c *Controller) Update(ctx context.Context) error {
 	return nil
 }
 
-func (c *Controller) Destory(ctx context.Context) error {
+func (c *Controller) DestoryStack(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	fmt.Println("INFO", "Starting stack destroy")
@@ -124,31 +151,28 @@ func (c *Controller) Destory(ctx context.Context) error {
 	return nil
 }
 
-func (c *Controller) State() ([]byte, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.stack == nil {
-		return nil, fmt.Errorf("stack uninitialized")
-	}
-	return json.Marshal(c.stack.State())
-}
-
-func (c *Controller) RuntimeError() error {
-	return c.stack.Error()
-}
-
 func (c *Controller) PrintStackResources() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	printStackResources(c.Stack)
 }
 
-// func (c *Controller) AddNode(n Node) error {
-// 	err := c.Config.AddNode(n)
-// 	if err != nil {
-// 		return err
+func isValidProject(p ProjectType) bool {
+	if p == DeployEsxi {
+		return true
+	} else if p == DeployExample {
+		return true
+	}
+	return false
+}
+
+// func (c *Controller) State() ([]byte, error) {
+// 	c.mu.Lock()
+// 	defer c.mu.Unlock()
+// 	if c.stack == nil {
+// 		return nil, fmt.Errorf("stack uninitialized")
 // 	}
-// 	return c.WriteConfig()
+// 	return json.Marshal(c.stack.State())
 // }
 
 // func (c *Controller) GetState(ctx context.Context) error {
@@ -167,20 +191,19 @@ func (c *Controller) PrintStackResources() {
 // 	}
 // 	printOutputs(outs)
 // }
-
-func printOutputs(outs auto.OutputMap) {
-	var value string
-	for key, out := range outs {
-		switch v := out.Value.(type) {
-		case string:
-			value = v
-		case int:
-			value = strconv.Itoa(v)
-		case int64:
-			value = fmt.Sprintf("%d", v)
-		default:
-			value = ""
-		}
-		fmt.Printf("%30s\t%s\n", key, value)
-	}
-}
+// func printOutputs(outs auto.OutputMap) {
+// 	var value string
+// 	for key, out := range outs {
+// 		switch v := out.Value.(type) {
+// 		case string:
+// 			value = v
+// 		case int:
+// 			value = strconv.Itoa(v)
+// 		case int64:
+// 			value = fmt.Sprintf("%d", v)
+// 		default:
+// 			value = ""
+// 		}
+// 		fmt.Printf("%30s\t%s\n", key, value)
+// 	}
+// }

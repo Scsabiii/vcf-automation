@@ -26,27 +26,45 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// Config is configuration of project
+const (
+	DeployEsxi    ProjectType = "esxi"
+	DeployExample ProjectType = "example"
+)
+
+// Config is configuration of project/stack
 type Config struct {
-	Stack   string     `yaml:"stack" json:"stack"`
-	Project DeployType `yaml:"project" json:"project"`
-	Props   Props      `yaml:"props" json:"props"`
+	Project ProjectType `json:"project" yaml:"project"`
+	Stack   string      `json:"stack" yaml:"stack"`
+	Props   Props       `json:"props" yaml:"props"`
 }
 
+// ProjectType is project type
+type ProjectType string
+
+// Props is configuration needed for pulumi projects. It holds general
+// configuration for openstack services and project specific stack props
 type Props struct {
-	Openstack OpenstackProps `yaml:"openstack" json:"openstack"`
-	Stack     interface{}    `yaml:"stack" json:"stack"`
+	OpenstackProps OpenstackProps `json:"openstack" yaml:"openstack"`
+	StackProps     StackProps     `json:"stack" yaml:"stack"`
 }
 
+// StackProps is a empty type, and should be used as project specific
+// StackProps when possible
+type StackProps interface{}
+
+// OpenstackProps
 type OpenstackProps struct {
-	Region   string `yaml:"region"`
-	Domain   string `yaml:"domain"`
-	Tenant   string `yaml:"tenant"`
-	UserName string `yaml:"user"`
-	Password string
+	Region string `json:"region" yaml:"region"`
+	Domain string `json:"domain" yaml:"domain"`
+	Tenant string `json:"tenant" yaml:"tenant"`
 }
 
-func ReadConfig(fpath string) (*Config, error) {
+// FileName generates the configuration file name with yaml extension
+func (c *Config) FileName() string {
+	return fmt.Sprintf("%s-%s.yaml", c.Project, c.Stack)
+}
+
+func readConfig(fpath string) (*Config, error) {
 	b, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return nil, err
@@ -58,7 +76,7 @@ func ReadConfig(fpath string) (*Config, error) {
 	return &c, nil
 }
 
-func WriteConfig(fpath string, c *Config, overwrite bool) error {
+func writeConfig(fpath string, c *Config, overwrite bool) error {
 	if !overwrite {
 		m, _ := filepath.Glob(fpath)
 		if m != nil {
@@ -66,30 +84,19 @@ func WriteConfig(fpath string, c *Config, overwrite bool) error {
 			return err
 		}
 	}
-	b, err := yaml.Marshal(c)
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile(fpath, b, 0644)
-}
 
-func (c *Config) Read(fpath string) error {
-	yamlBytes, err := ioutil.ReadFile(fpath)
-	if err != nil {
-		return err
-	}
-	if err := yaml.Unmarshal(yamlBytes, c); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *Config) Write(fpath string) error {
-	if c.Project == "" {
-		return fmt.Errorf("%q: %v", "Project", ErrStringEmpty)
-	}
-	if c.Stack == "" {
-		return fmt.Errorf("%q: %v", "Stack", ErrStringEmpty)
+	// Need to unmarshal the field Props.StackProps, of type interface{}, to
+	// the actual structure it has. Otherwise it is serialized into a raw
+	// string
+	switch c.Project {
+	case DeployEsxi:
+		p := EsxiStackProps{}
+		err := unmarshalStackProps(c.Props.StackProps, &p)
+		if err != nil {
+			return err
+		}
+		c.Props.StackProps = p
+	default:
 	}
 	b, err := yaml.Marshal(c)
 	if err != nil {
@@ -98,22 +105,49 @@ func (c *Config) Write(fpath string) error {
 	return ioutil.WriteFile(fpath, b, 0644)
 }
 
-// func (c *Config) AddNode(n Node) error {
-// 	for _, nn := range c.Props.Nodes {
-// 		if nn.Name == n.Name {
-// 			return fmt.Errorf("%q: %v", n.Name, ErrNodeExists)
-// 		}
-// 	}
-// 	c.Props.Nodes = append(c.Props.Nodes, n)
-// 	return nil
-// }
+// MergeStackPropsToConfig merges the Props.StackProps field from s into Config c.
+// NOTE: only EsxiStackProps.Nodes and EsxiStackProps.Shares are merged
+func MergeStackPropsToConfig(c *Config, s StackProps) (*Config, error) {
+	// deep copy old config to nc
+	nc := *c
+	switch nc.Project {
+	case DeployEsxi:
+		p := EsxiStackProps{}
+		err := unmarshalStackProps(c.Props.StackProps, &p)
+		if err != nil {
+			return nil, err
+		}
+		np := EsxiStackProps{}
+		err = unmarshalStackProps(s, &np)
+		if err != nil {
+			return nil, err
+		}
+		if np.Nodes != nil {
+			p.Nodes = append(p.Nodes, np.Nodes...)
+		}
+		if np.Shares != nil {
+			p.Shares = append(p.Shares, np.Shares...)
+		}
+		nc.Props.StackProps = p
+	default:
+		return nil, fmt.Errorf("merging configuration not supported")
+	}
+	return &nc, nil
+}
 
-// func (c *Config) validate() error {
-// 	if c.Props.Domain == "" {
-// 		return fmt.Errorf("%q: %v", "Props.Domain", ErrStringEmpty)
-// 	}
-// 	if c.Props.Tenant == "" {
-// 		return fmt.Errorf("%q: %v", "Props.Tenant", ErrStringEmpty)
-// 	}
-// 	return nil
-// }
+// unmarshalStackProps deserializes the StackProps s into props, whose actual
+// type is assigned before calling this function.
+// E.g.,
+//		p := EsxiStackProps{}
+//      unmarshalStackProps(s, p)
+func unmarshalStackProps(s StackProps, props interface{}) error {
+	b, err := yaml.Marshal(s)
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(b, props)
+}
+
+func getStackPropsFromConfig(cfg *Config, props interface{}) error {
+	return unmarshalStackProps(cfg.Props.StackProps, props)
+}
