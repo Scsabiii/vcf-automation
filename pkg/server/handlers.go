@@ -25,7 +25,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/sapcc/avacado-automation/ccmaas/auto"
+	"github.com/sapcc/avacado-automation/pkg/controller"
 )
 
 func newStackHandler(w http.ResponseWriter, r *http.Request) {
@@ -73,10 +73,10 @@ func updateStackHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(m.Config)
 }
 
-func getConfigFromRequestBody(body io.ReadCloser) (*auto.Config, error) {
+func getConfigFromRequestBody(body io.ReadCloser) (*controller.Config, error) {
 	decoder := json.NewDecoder(body)
 	defer body.Close()
-	c := auto.Config{}
+	c := controller.Config{}
 	err := decoder.Decode(&c)
 	if err != nil {
 		return nil, err

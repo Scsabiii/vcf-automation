@@ -23,13 +23,19 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/sapcc/avacado-automation/ccmaas/auto"
+	"github.com/sapcc/avacado-automation/pkg/controller"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-var destroyCmd = &cobra.Command{
-	Use:   "destroy [projectName/stackName]",
+var (
+	outputs bool
+	yaml    bool
+	ctl     controller.Controller
+)
+
+var deployCmd = &cobra.Command{
+	Use:   "deploy [projectName/stackName]",
 	Short: "Provision CCI using config file (without .yaml suffix)",
 	Long:  `Provision CCI project (installing ESXi nodes)`,
 	Args:  cobra.MinimumNArgs(1),
@@ -41,7 +47,7 @@ var destroyCmd = &cobra.Command{
 		project, stack := extractProjectStack(args)
 		fname := fmt.Sprintf("%s-%s.yaml", project, stack)
 		fpath := path.Join(etcdir, fname)
-		c, err := auto.NewControllerFromConfigFile(prjdir, fpath)
+		c, err := controller.NewControllerFromConfigFile(prjdir, fpath)
 		if err != nil {
 			logErrorAndExit(err)
 		}
@@ -49,13 +55,31 @@ var destroyCmd = &cobra.Command{
 		if err != nil {
 			logErrorAndExit(err)
 		}
-		err = c.DestoryStack(ctx)
-		if err != nil {
-			logErrorAndExit(err)
+		if outputs {
+			fmt.Println()
+			fmt.Println("Outputs")
+			fmt.Println("-------")
+			// c.PrintStackOutputs(ctx)
+			// } else if yaml {
+			// 	yamlOutput, err := c.GenerateStackYaml(ctx, c.Config)
+			// 	if err != nil {
+			// 		fmt.Println(err)
+			// 		os.Exit(1)
+			// 	}
+			// 	fmt.Println()
+			// 	fmt.Println("Yaml Outputs")
+			// 	fmt.Println("-------")
+			// 	fmt.Println(string(yamlOutput))
+		} else {
+			if err := c.UpdateStack(ctx); err != nil {
+				logErrorAndExit(err)
+			}
 		}
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(destroyCmd)
+	rootCmd.AddCommand(deployCmd)
+	deployCmd.Flags().BoolVarP(&outputs, "outputs", "o", false, "Outputs of stack")
+	deployCmd.Flags().BoolVarP(&yaml, "yaml", "y", false, "Yaml output")
 }

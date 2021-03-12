@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/sapcc/avacado-automation/ccmaas/auto"
+	"github.com/sapcc/avacado-automation/pkg/controller"
 	"github.com/spf13/viper"
 )
 
@@ -46,7 +46,7 @@ var (
 type ManagerCache map[string]*StackManager
 
 type StackManager struct {
-	*auto.Controller
+	*controller.Controller
 	err error
 }
 
@@ -157,12 +157,12 @@ func getManager(fname string) (*StackManager, error) {
 	}
 }
 
-func newManagerFromConfig(cfg *auto.Config) (*StackManager, error) {
+func newManagerFromConfig(cfg *controller.Config) (*StackManager, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	ctx := context.Background()
 	// create and initialize controller
-	l, err := auto.NewController(prjpath, cfgpath, cfg)
+	l, err := controller.NewController(prjpath, cfgpath, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func newManagerFromConfigFile(fname string) (*StackManager, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	fpath := path.Join(cfgpath, fname)
-	l, err := auto.NewControllerFromConfigFile(prjpath, fpath)
+	l, err := controller.NewControllerFromConfigFile(prjpath, fpath)
 	if err != nil {
 		return nil, err
 	}

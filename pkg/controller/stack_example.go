@@ -16,7 +16,7 @@
 *
 ******************************************************************************/
 
-package auto
+package controller
 
 import (
 	"context"
@@ -80,15 +80,14 @@ func (s ExampleStack) Refresh(ctx context.Context) error {
 	}
 }
 
-func (s ExampleStack) Update(ctx context.Context) error {
+func (s ExampleStack) Update(ctx context.Context) (auto.UpResult, error) {
 	stdoutStreamer := optup.ProgressStreams(os.Stdout)
-	if res, err := s.Stack.Up(ctx, stdoutStreamer); err != nil {
+	res, err := s.Stack.Up(ctx, stdoutStreamer)
+	if err != nil {
 		s.state.err = err
-		return err
-	} else {
-		fmt.Println(res)
-		return nil
+		return auto.UpResult{}, err
 	}
+	return res, nil
 }
 
 func (s ExampleStack) Destroy(ctx context.Context) error {

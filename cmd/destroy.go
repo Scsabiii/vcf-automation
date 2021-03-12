@@ -19,25 +19,43 @@
 package cmd
 
 import (
-	"github.com/sapcc/avacado-automation/ccmaas/server"
+	"context"
+	"fmt"
+	"path"
+
+	"github.com/sapcc/avacado-automation/pkg/controller"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-// serveCmd represents the serve command
-var serveCmd = &cobra.Command{
-	Use:   "server",
-	Short: "server",
-	Long:  `server`,
+var destroyCmd = &cobra.Command{
+	Use:   "destroy [projectName/stackName]",
+	Short: "Provision CCI using config file (without .yaml suffix)",
+	Long:  `Provision CCI project (installing ESXi nodes)`,
+	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		port := viper.GetInt("port")
-		if port == 0 {
-			port = 8080
+		ctx := context.Background()
+		workdir := viper.GetString("workdir")
+		prjdir := path.Join(workdir, "projects")
+		etcdir := path.Join(workdir, "etc")
+		project, stack := extractProjectStack(args)
+		fname := fmt.Sprintf("%s-%s.yaml", project, stack)
+		fpath := path.Join(etcdir, fname)
+		c, err := controller.NewControllerFromConfigFile(prjdir, fpath)
+		if err != nil {
+			logErrorAndExit(err)
 		}
-		server.Run(port)
+		err = c.InitStack(ctx)
+		if err != nil {
+			logErrorAndExit(err)
+		}
+		err = c.DestoryStack(ctx)
+		if err != nil {
+			logErrorAndExit(err)
+		}
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(serveCmd)
+	rootCmd.AddCommand(destroyCmd)
 }

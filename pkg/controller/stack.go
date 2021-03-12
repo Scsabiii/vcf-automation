@@ -16,7 +16,7 @@
 *
 ******************************************************************************/
 
-package auto
+package controller
 
 import (
 	"context"
@@ -30,7 +30,7 @@ type Stack interface {
 	GenYaml(context.Context, *Config) ([]byte, error)
 
 	Refresh(context.Context) error
-	Update(context.Context) error
+	Update(context.Context) (auto.UpResult, error)
 	Destroy(context.Context) error
 	State() interface{}
 	Error() error
@@ -46,11 +46,11 @@ type Stack interface {
 	// History(ctx context.Context, pageSize int, page int) ([]auto.UpdateSummary, error)
 }
 
-type YamlOutput struct {
-	Nodes []NodeOutput `yaml:"nodes"`
-}
+// type YamlOutput struct {
+// 	Nodes []NodeOutput `yaml:"nodes"`
+// }
 
-type NodeOutput struct {
-	ID string `yaml:"id"`
-	IP string `yaml:"ip"`
-}
+// type NodeOutput struct {
+// 	ID string `yaml:"id"`
+// 	IP string `yaml:"ip"`
+// }

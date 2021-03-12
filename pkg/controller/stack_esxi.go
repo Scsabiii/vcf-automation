@@ -16,7 +16,7 @@
 *
 ******************************************************************************/
 
-package auto
+package controller
 
 import (
 	"context"
@@ -75,7 +75,7 @@ func InitEsxiStack(ctx context.Context, stackName, projectDir string) (EsxiStack
 func (s EsxiStack) Configure(ctx context.Context, cfg *Config) error {
 	o := cfg.Props.OpenstackProps
 	p := EsxiStackProps{}
-	err := getStackPropsFromConfig(cfg, &p)
+	err := GetStackPropsFromConfig(cfg, &p)
 	if err != nil {
 		return err
 	}
@@ -154,15 +154,14 @@ func (s EsxiStack) Refresh(ctx context.Context) error {
 	return nil
 }
 
-func (s EsxiStack) Update(ctx context.Context) error {
+func (s EsxiStack) Update(ctx context.Context) (auto.UpResult, error) {
+	// res, err := s.Stack.Up(ctx)
 	res, err := s.Stack.Up(ctx)
 	if err != nil {
 		s.state.err = err
-		return err
+		return auto.UpResult{}, err
 	}
-	// printUpdateSummary(res.Summary)
-	printStackOutputs(res.Outputs)
-	return nil
+	return res, nil
 }
 
 func (s EsxiStack) Destroy(ctx context.Context) error {

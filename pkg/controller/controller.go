@@ -1,4 +1,4 @@
-package auto
+package controller
 
 import (
 	"context"
@@ -133,8 +133,10 @@ func (c *Controller) UpdateStack(ctx context.Context) error {
 	if c.stack == nil {
 		return fmt.Errorf("stack uninitialized")
 	}
-	if err := c.stack.Update(ctx); err != nil {
+	if res, err := c.stack.Update(ctx); err != nil {
 		return err
+	} else {
+		printStackOutputs(res.Outputs)
 	}
 	return nil
 }

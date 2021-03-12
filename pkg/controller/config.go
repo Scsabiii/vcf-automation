@@ -16,7 +16,7 @@
 *
 ******************************************************************************/
 
-package auto
+package controller
 
 import (
 	"fmt"
@@ -148,6 +148,6 @@ func unmarshalStackProps(s StackProps, props interface{}) error {
 	return yaml.Unmarshal(b, props)
 }
 
-func getStackPropsFromConfig(cfg *Config, props interface{}) error {
+func GetStackPropsFromConfig(cfg *Config, props interface{}) error {
 	return unmarshalStackProps(cfg.Props.StackProps, props)
 }
