@@ -66,7 +66,7 @@ func init() {
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	// read in environment variables that match
-	viper.SetEnvPrefix("ccmaas")
+	viper.SetEnvPrefix("automation")
 	viper.AutomaticEnv()
 }
 
