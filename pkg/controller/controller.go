@@ -6,6 +6,9 @@ import (
 	"path"
 	"path/filepath"
 	"sync"
+	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Controller struct {
@@ -45,6 +48,65 @@ func NewControllerFromConfigFile(prjpath, cfgfilepath string) (*Controller, erro
 		ConfigFile:  cfgfilepath,
 	}
 	return &l, nil
+}
+
+func (c *Controller) Run(updateCh chan bool, ch chan error) {
+	ctx := context.Background()
+	ticker := time.NewTicker(5 * time.Minute)
+	logger := log.WithFields(log.Fields{
+		"project": c.Project,
+		"stack":   c.Stack,
+	})
+
+	for {
+		func() {
+			var err error
+			if c.stack == nil {
+				logger.Info("initialize stack")
+				err = c.InitStack(ctx)
+				if err != nil {
+					logger.WithError(err).Error("initialize stack failed")
+					ch <- err
+					return
+				}
+				logger.Info("configure stack")
+				err = c.ConfigureStack(ctx)
+				if err != nil {
+					logger.WithError(err).Error("configure stack failed")
+					ch <- err
+					return
+				}
+			}
+			logger.Info("refresh stack")
+			err = c.RefreshStack(ctx)
+			if err != nil {
+				logger.WithError(err).Error("refresh stack failed")
+				ch <- err
+				return
+			}
+			logger.Info("update stack")
+			err = c.UpdateStack(ctx)
+			if err != nil {
+				logger.WithError(err).Error("update stack failed")
+				ch <- err
+				return
+			}
+			logger.Info("stack resources:")
+			c.PrintStackResources()
+		}()
+
+		select {
+		case <-updateCh:
+			logger.Info("configure stack")
+			err := c.ConfigureStack(ctx)
+			if err != nil {
+				logger.WithError(err).Error("configure stack failed")
+				ch <- err
+			}
+		case <-ticker.C:
+		}
+	}
+
 }
 
 // UpdateConfig updates Props.StackProps field of the controller's Config with

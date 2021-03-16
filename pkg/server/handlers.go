@@ -22,33 +22,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/sapcc/avacado-automation/pkg/controller"
+	log "github.com/sirupsen/logrus"
 )
 
 func newStackHandler(w http.ResponseWriter, r *http.Request) {
-	// decoder := json.NewDecoder(r.Body)
-	// defer r.Body.Close()
-	// // decode and validate payload as auto.Config
-	// c := auto.Config{}
-	// err := decoder.Decode(&c)
-	c, err := getConfigFromRequestBody(r.Body)
+	cfg, err := getConfigFromRequestBody(r.Body)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
-	m, err := newManagerFromConfig(c)
+	c, err := newControllerFromConfig(cfg)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
-	// send stack manage to main loop
-	stackCh <- m
+	c.StartRun()
+
 	// request is ok;
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(m.Config)
+	json.NewEncoder(w).Encode(c.Config)
 }
 
 func updateStackHandler(w http.ResponseWriter, r *http.Request) {
@@ -57,20 +52,21 @@ func updateStackHandler(w http.ResponseWriter, r *http.Request) {
 		handleError(w, http.StatusUnprocessableEntity, err)
 		return
 	}
-	m, err := getManager(c.FileName())
+	l, err := getController(c.FileName())
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 	}
-	err = m.UpdateConfig(c)
+	err = l.UpdateConfig(c)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
-	// send stack manage to main loop
-	stackCh <- m
+	// trigger stack update
+	l.StartUpdateStack()
+
 	// request is ok;
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(m.Config)
+	json.NewEncoder(w).Encode(l.Config)
 }
 
 func getConfigFromRequestBody(body io.ReadCloser) (*controller.Config, error) {
@@ -120,6 +116,6 @@ func loggingMiddleware(next http.Handler) http.Handler {
 func handleError(w http.ResponseWriter, statusCode int, e error) {
 	w.WriteHeader(statusCode)
 	msg := fmt.Sprintf("%d - %s", statusCode, e)
-	log.Println("ERROR", msg)
+	log.WithField("code", statusCode).WithError(e).Error("handling error")
 	json.NewEncoder(w).Encode(msg)
 }

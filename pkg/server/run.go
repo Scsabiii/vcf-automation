@@ -19,57 +19,64 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path"
 	"sync"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/sapcc/avacado-automation/pkg/controller"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
 var (
-	workdir  string
-	cfgpath  string
-	prjpath  string
-	mgrCache ManagerCache
-	stackCh  chan *StackManager
-	mu       sync.Mutex
+	workdir string
+	cfgpath string
+	prjpath string
+	manager Manager
+	stackCh chan *Controller
+	mu      sync.Mutex
 )
 
-type ManagerCache map[string]*StackManager
+type Manager map[string]*Controller
 
-type StackManager struct {
+type Controller struct {
 	*controller.Controller
-	err error
+	err   error
+	errCh chan error
+	updCh chan bool
 }
 
 func Run(port int) {
-	stackCh = make(chan *StackManager)
+	stackCh = make(chan *Controller)
 	workdir = viper.GetString("workdir")
 	cfgpath = path.Join(workdir, "etc")
 	prjpath = path.Join(workdir, "projects")
 
+	log.SetFormatter(&log.TextFormatter{})
+	log.SetOutput(os.Stdout)
+	log.SetLevel(log.DebugLevel)
+
 	// read configuration files and initialize controllers
-	log.Println("INFO", "read configuration in directory", cfgpath)
+	log.Infof("read configuration in directory %s", cfgpath)
 	files, err := ioutil.ReadDir(cfgpath)
 	if err != nil {
 		log.Panic(err)
 	}
+
+	// initialize filers
+	log.Println("==== initializ filers ====")
 	initialize(files)
 
-	// start refrsh/deploy loop
-	log.Println("INFO", "go run loop")
-	go run()
+	log.Println("==== start run ====")
+	for _, c := range manager {
+		c.StartRun()
+	}
 
-	// http server
-	log.Printf("INFO listening on port %d\n", port)
+	log.Println("listening on port %d\n", port)
 	r := mux.NewRouter()
 	r.Headers("Content-Type", "application/json")
 	r.HandleFunc("/new", newStackHandler).Methods("POST")
@@ -78,108 +85,71 @@ func Run(port int) {
 	r.Use(loggingMiddleware)
 	http.Handle("/", r)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil))
+
 }
 
 func initialize(files []os.FileInfo) {
-	ctx := context.Background()
 	for _, f := range files {
-		log.Println("INFO", "===", f.Name())
-		m, err := newManagerFromConfigFile(f.Name())
+		log.Infof("initialize %q", f.Name())
+		_, err := newControllerFromConfigFile(f.Name())
 		if err != nil {
-			log.Println("ERROR", err)
-			continue
-		}
-		log.Printf("INFO init stack %q in project %q", m.Stack, m.Project)
-		err = m.InitStack(ctx)
-		if err != nil {
-			log.Println("ERROR", err)
-			m.err = err
-			continue
-		}
-		log.Println("INFO", "configure stack")
-		err = m.ConfigureStack(ctx)
-		if err != nil {
-			log.Println("ERROR", err)
+			log.WithError(err).Error("fail to initialize controller")
 			continue
 		}
 	}
 }
 
-func run() {
-	log.Println("start deploy loop")
-	ctx := context.Background()
-	ticker := time.Tick(5 * time.Minute)
-	for {
-		// Refresh and update all managed stacks
-		for _, m := range mgrCache {
-			log.Println("INFO ===", "refresh and update stack", m.Project, m.Stack)
-			log.Println("INFO", "refreshing")
-			err := m.RefreshStack(ctx)
-			if err != nil {
-				log.Println("ERROR", err)
-				continue
-			}
-			log.Println("INFO", "updating")
-			err = m.UpdateStack(ctx)
-			if err != nil {
-				log.Println("ERROR", err)
-				continue
-			}
-			log.Println("INFO", "resources:")
-			m.PrintStackResources()
-		}
-
+func (c *Controller) StartRun() {
+	if c.errCh == nil {
+		c.errCh = make(chan error, 0)
+	}
+	if c.updCh == nil {
+		c.updCh = make(chan bool, 0)
+	}
+	go func() {
 		select {
-		case m := <-stackCh:
-			// Configure stack when stack is created or updated
-			log.Println("INFO", "configure stack")
-			err := m.ConfigureStack(ctx)
-			if err != nil {
-				m.err = err
-				log.Println("ERROR", err)
-				return
-			}
-		case <-ticker:
+		case err := <-c.errCh:
+			c.err = err
 		}
-	}
+	}()
+	go c.Controller.Run(c.updCh, c.errCh)
 }
 
-func getManager(fname string) (*StackManager, error) {
+func (c *Controller) StartUpdateStack() {
+	go func() {
+		c.updCh <- true
+	}()
+}
+
+func getController(fname string) (*Controller, error) {
 	mu.Lock()
 	defer mu.Unlock()
-	if mgrCache == nil {
+	if manager == nil {
 		return nil, fmt.Errorf("no manager: %s", fname)
 	}
-	if s, ok := mgrCache[fname]; !ok {
+	if s, ok := manager[fname]; !ok {
 		return nil, fmt.Errorf("no manager: %s", fname)
 	} else {
 		return s, nil
 	}
 }
 
-func newManagerFromConfig(cfg *controller.Config) (*StackManager, error) {
+func newControllerFromConfig(cfg *controller.Config) (*Controller, error) {
 	mu.Lock()
 	defer mu.Unlock()
-	ctx := context.Background()
-	// create and initialize controller
 	l, err := controller.NewController(prjpath, cfgpath, cfg)
 	if err != nil {
 		return nil, err
 	}
-	// initialize stack
-	err = l.InitStack(ctx)
-	if err != nil {
-		return nil, err
+	if manager == nil {
+		manager = make(Manager)
 	}
-	if mgrCache == nil {
-		mgrCache = make(ManagerCache)
-	}
-	m := StackManager{l, nil}
-	mgrCache[l.FileName()] = &m
-	return &m, nil
+	c := Controller{l, nil, nil, nil}
+	manager[l.FileName()] = &c
+	return &c, nil
 }
 
-func newManagerFromConfigFile(fname string) (*StackManager, error) {
+func newControllerFromConfigFile(fname string) (*Controller, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	fpath := path.Join(cfgpath, fname)
@@ -187,10 +157,10 @@ func newManagerFromConfigFile(fname string) (*StackManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	if mgrCache == nil {
-		mgrCache = make(ManagerCache)
+	if manager == nil {
+		manager = make(Manager)
 	}
-	m := StackManager{l, nil}
-	mgrCache[l.FileName()] = &m
-	return &m, nil
+	c := Controller{l, nil, nil, nil}
+	manager[l.FileName()] = &c
+	return &c, nil
 }
