@@ -19,7 +19,7 @@
 package cmd
 
 import (
-	"github.com/sapcc/avacado-automation/pkg/server"
+	"github.com/sapcc/avocado-automation/pkg/server"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

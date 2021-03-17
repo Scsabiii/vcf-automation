@@ -27,7 +27,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/mux"
-	"github.com/sapcc/avacado-automation/pkg/controller"
+	"github.com/sapcc/avocado-automation/pkg/controller"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )

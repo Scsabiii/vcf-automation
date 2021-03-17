@@ -1,15 +1,15 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: avacado-automation
+  name: avocado-automation
 spec:
   selector:
     matchLabels:
-      name: avacado-automation
+      name: avocado-automation
   template:
     metadata:
       labels:
-        name: avacado-automation
+        name: avocado-automation
     spec:
       containers:
         - name: automation
