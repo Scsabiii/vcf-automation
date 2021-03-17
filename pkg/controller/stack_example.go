@@ -101,10 +101,10 @@ func (s ExampleStack) Destroy(ctx context.Context) error {
 	}
 }
 
-func (s ExampleStack) State() interface{} {
+func (s ExampleStack) GetState() interface{} {
 	return nil
 }
 
-func (s ExampleStack) Error() error {
+func (s ExampleStack) GetError() error {
 	return nil
 }

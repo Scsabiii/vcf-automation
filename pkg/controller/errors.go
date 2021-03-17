@@ -21,6 +21,7 @@ package controller
 import "errors"
 
 var ErrStringEmpty = errors.New("string empty")
+var ErrNotImplemented = errors.New("not implemented")
 var ErrNotSupported = errors.New("not supported")
 var ErrNodeExists = errors.New("node exists")
 var ErrStackNotInitialized = errors.New("stack not initialized")

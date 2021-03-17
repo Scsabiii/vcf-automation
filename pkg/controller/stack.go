@@ -31,9 +31,9 @@ type Stack interface {
 
 	Refresh(context.Context) error
 	Update(context.Context) (auto.UpResult, error)
-	Destroy(context.Context) error
-	State() interface{}
-	Error() error
+	// Destroy(context.Context) error
+	GetState() interface{}
+	GetError() error
 
 	// GetState()
 

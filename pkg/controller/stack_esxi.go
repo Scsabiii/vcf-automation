@@ -24,11 +24,10 @@ import (
 	"fmt"
 
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
-	"github.com/spf13/viper"
 )
 
 type EsxiStack struct {
-	*auto.Stack
+	auto.Stack
 	state *EsxiState
 }
 
@@ -63,30 +62,22 @@ type Share struct {
 	Size int    `yaml:"size"`
 }
 
-func InitEsxiStack(ctx context.Context, stackName, projectDir string) (EsxiStack, error) {
+func InitEsxiStack(ctx context.Context, stackName, projectDir string) (*EsxiStack, error) {
 	s, err := auto.UpsertStackLocalSource(ctx, stackName, projectDir)
 	if err != nil {
-		return EsxiStack{}, fmt.Errorf("Failed to create or select stack: %v\n", err)
+		return nil, fmt.Errorf("Failed to create or select stack: %v\n", err)
 	}
-	return EsxiStack{Stack: &s, state: &EsxiState{}}, nil
+	return &EsxiStack{Stack: s, state: &EsxiState{}}, nil
 }
 
 // Config stack
 func (s EsxiStack) Configure(ctx context.Context, cfg *Config) error {
-	o := cfg.Props.OpenstackProps
+	configureOpenstack(ctx, s.Stack, cfg)
+
 	p := EsxiStackProps{}
 	err := GetStackPropsFromConfig(cfg, &p)
 	if err != nil {
 		return err
-	}
-	if o.Region == "" {
-		return fmt.Errorf("Config.Props.Openstack.Region not set")
-	}
-	if o.Domain == "" {
-		return fmt.Errorf("Config.Props.Openstack.Domain not set")
-	}
-	if o.Tenant == "" {
-		return fmt.Errorf("Config.Props.Openstack.Tenant not set")
 	}
 	if p.Prefix == "" {
 		p.Prefix = cfg.Stack
@@ -97,29 +88,6 @@ func (s EsxiStack) Configure(ctx context.Context, cfg *Config) error {
 	if p.StorageSubnet == "" {
 		return fmt.Errorf("Config.Props.Stack.StorageSubnet not set")
 	}
-
-	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", o.Region)
-	osUsername := viper.GetString("os_username")
-	if osUsername == "" {
-		return fmt.Errorf("env variable CCMAAS_OS_USERNAME not configured")
-	}
-	osPassword := viper.GetString("os_password")
-	if osPassword == "" {
-		return fmt.Errorf("env variable CCMAAS_OS_PASSWORD not configured")
-	}
-
-	// config openstack
-	c := auto.ConfigMap{
-		"openstack:authUrl":           auto.ConfigValue{Value: osAuthURL},
-		"openstack:region":            auto.ConfigValue{Value: o.Region},
-		"openstack:projectDomainName": auto.ConfigValue{Value: o.Domain},
-		"openstack:tenantName":        auto.ConfigValue{Value: o.Tenant},
-		"openstack:userDomainName":    auto.ConfigValue{Value: o.Domain},
-		"openstack:userName":          auto.ConfigValue{Value: osUsername},
-		"openstack:password":          auto.ConfigValue{Value: osPassword, Secret: true},
-		"openstack:insecure":          auto.ConfigValue{Value: "true"},
-	}
-	s.SetAllConfig(ctx, c)
 
 	// set project settings
 	s.SetConfig(ctx, "resourcePrefix", auto.ConfigValue{Value: p.Prefix})
@@ -155,7 +123,6 @@ func (s EsxiStack) Refresh(ctx context.Context) error {
 }
 
 func (s EsxiStack) Update(ctx context.Context) (auto.UpResult, error) {
-	// res, err := s.Stack.Up(ctx)
 	res, err := s.Stack.Up(ctx)
 	if err != nil {
 		s.state.err = err
@@ -174,11 +141,11 @@ func (s EsxiStack) Destroy(ctx context.Context) error {
 	return nil
 }
 
-func (s EsxiStack) State() interface{} {
+func (s EsxiStack) GetState() interface{} {
 	return s.state
 }
 
-func (s EsxiStack) Error() error {
+func (s EsxiStack) GetError() error {
 	return s.state.err
 }
 

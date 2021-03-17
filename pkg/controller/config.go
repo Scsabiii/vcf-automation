@@ -27,8 +27,9 @@ import (
 )
 
 const (
-	DeployEsxi    ProjectType = "esxi"
-	DeployExample ProjectType = "example"
+	DeployEsxi       ProjectType = "esxi"
+	DeployExample    ProjectType = "example"
+	DeployManagement ProjectType = "management"
 )
 
 // Config is configuration of project/stack
@@ -150,4 +151,28 @@ func unmarshalStackProps(s StackProps, props interface{}) error {
 
 func GetStackPropsFromConfig(cfg *Config, props interface{}) error {
 	return unmarshalStackProps(cfg.Props.StackProps, props)
+}
+
+func validateConfig(c *Config) error {
+	if c.Project == "" {
+		return fmt.Errorf("validateConfig: project not set")
+	}
+	if !isValidProject(c.Project) {
+		return fmt.Errorf("project '%s' not supported", c.Project)
+	}
+	if c.Stack == "" {
+		return fmt.Errorf("validateConfig: stack not set")
+	}
+	return nil
+}
+
+func isValidProject(p ProjectType) bool {
+	if p == DeployEsxi {
+		return true
+	} else if p == DeployExample {
+		return true
+	} else if p == DeployManagement {
+		return true
+	}
+	return false
 }

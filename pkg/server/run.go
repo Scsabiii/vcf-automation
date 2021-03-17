@@ -37,7 +37,6 @@ var (
 	cfgpath string
 	prjpath string
 	manager Manager
-	stackCh chan *Controller
 	mu      sync.Mutex
 )
 
@@ -51,20 +50,24 @@ type Controller struct {
 }
 
 func Run(port int) {
-	stackCh = make(chan *Controller)
 	workdir = viper.GetString("workdir")
 	cfgpath = path.Join(workdir, "etc")
 	prjpath = path.Join(workdir, "projects")
 
 	log.SetFormatter(&log.TextFormatter{})
-	log.SetOutput(os.Stdout)
 	log.SetLevel(log.DebugLevel)
+	log.SetOutput(os.Stdout)
+
+	// br := bufio.NewWriter(os.Stdout)
+	// log.SetOutput(br)
+	// br.Flush()
 
 	// read configuration files and initialize controllers
 	log.Infof("read configuration in directory %s", cfgpath)
 	files, err := ioutil.ReadDir(cfgpath)
 	if err != nil {
-		log.Panic(err)
+		log.Error(err)
+		os.Exit(1)
 	}
 
 	// initialize filers
@@ -76,7 +79,7 @@ func Run(port int) {
 		c.StartRun()
 	}
 
-	log.Println("listening on port %d\n", port)
+	log.Printf("listening on port %d", port)
 	r := mux.NewRouter()
 	r.Headers("Content-Type", "application/json")
 	r.HandleFunc("/new", newStackHandler).Methods("POST")
@@ -85,12 +88,11 @@ func Run(port int) {
 	r.Use(loggingMiddleware)
 	http.Handle("/", r)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil))
-
 }
 
 func initialize(files []os.FileInfo) {
 	for _, f := range files {
-		log.Infof("initialize %q", f.Name())
+		log.Infof("initialize %s", f.Name())
 		_, err := newControllerFromConfigFile(f.Name())
 		if err != nil {
 			log.WithError(err).Error("fail to initialize controller")

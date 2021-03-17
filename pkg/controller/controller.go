@@ -21,11 +21,15 @@ type Controller struct {
 
 // NewController creates controller with given Config c, and writes the config to disk
 func NewController(ppath, cpath string, c *Config) (*Controller, error) {
+	err := validateConfig(c)
+	if err != nil {
+		return nil, err
+	}
 	l := Controller{
 		ProjectPath: ppath,
 		ConfigFile:  path.Join(cpath, c.FileName()),
 		Config:      c}
-	err := writeConfig(l.ConfigFile, c, false)
+	err = writeConfig(l.ConfigFile, c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -39,8 +43,9 @@ func NewControllerFromConfigFile(prjpath, cfgfilepath string) (*Controller, erro
 	if err != nil {
 		return nil, err
 	}
-	if !isValidProject(c.Project) {
-		return nil, fmt.Errorf("project not suported: %q", c.Project)
+	err = validateConfig(c)
+	if err != nil {
+		return nil, err
 	}
 	l := Controller{
 		Config:      c,
@@ -135,7 +140,7 @@ func (l *Controller) UpdateConfig(s *Config) error {
 
 // RuntimeError returns error thrown when refresh/update/destroy stack
 func (c *Controller) RuntimeError() error {
-	return c.stack.Error()
+	return c.stack.GetError()
 }
 
 func (l *Controller) InitStack(ctx context.Context) error {
@@ -153,6 +158,13 @@ func (l *Controller) InitStack(ctx context.Context) error {
 		projectDir := filepath.Join(l.ProjectPath, "esxi")
 		stackName := l.Stack
 		s, err := InitEsxiStack(ctx, stackName, projectDir)
+		if err != nil {
+			return err
+		}
+		l.stack = s
+	case DeployManagement:
+		projectDir := filepath.Join(l.ProjectPath, "management")
+		s, err := InitManagementStack(ctx, l.Config.Stack, projectDir)
 		if err != nil {
 			return err
 		}
@@ -203,31 +215,22 @@ func (c *Controller) UpdateStack(ctx context.Context) error {
 	return nil
 }
 
-func (c *Controller) DestoryStack(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	fmt.Println("INFO", "Starting stack destroy")
-	if err := c.stack.Destroy(ctx); err != nil {
-		fmt.Printf("Failed to update stack: %v\n\n", err)
-		return err
-	}
-	fmt.Println("Stack successfully destroyed")
-	return nil
-}
+// func (c *Controller) DestoryStack(ctx context.Context) error {
+// 	c.mu.Lock()
+// 	defer c.mu.Unlock()
+// 	fmt.Println("INFO", "Starting stack destroy")
+// 	if err := c.stack.Destroy(ctx); err != nil {
+// 		fmt.Printf("Failed to update stack: %v\n\n", err)
+// 		return err
+// 	}
+// 	fmt.Println("Stack successfully destroyed")
+// 	return nil
+// }
 
 func (c *Controller) PrintStackResources() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	printStackResources(c.Stack)
-}
-
-func isValidProject(p ProjectType) bool {
-	if p == DeployEsxi {
-		return true
-	} else if p == DeployExample {
-		return true
-	}
-	return false
 }
 
 // func (c *Controller) State() ([]byte, error) {

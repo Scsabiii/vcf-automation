@@ -49,10 +49,10 @@ var destroyCmd = &cobra.Command{
 		if err != nil {
 			logErrorAndExit(err)
 		}
-		err = c.DestoryStack(ctx)
-		if err != nil {
-			logErrorAndExit(err)
-		}
+		// err = c.DestoryStack(ctx)
+		// if err != nil {
+		// 	logErrorAndExit(err)
+		// }
 	},
 }
 

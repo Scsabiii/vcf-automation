@@ -19,6 +19,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -29,6 +30,7 @@ import (
 	pulumistack "github.com/pulumi/pulumi/pkg/v2/resource/stack"
 	"github.com/pulumi/pulumi/sdk/v2/go/common/apitype"
 	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
+	"github.com/spf13/viper"
 )
 
 type Resource struct {
@@ -128,4 +130,39 @@ func printResources(res map[string][]Resource, resourceURN, prefix string) {
 		log.Printf("%s %s[%s]: %s %s\n", prefix, r.Name, r.Type, r.Instance, r.ID)
 		printResources(res, r.URNName, prefix+"\t")
 	}
+}
+
+// config openstack
+func configureOpenstack(ctx context.Context, s auto.Stack, cfg *Config) error {
+	o := cfg.Props.OpenstackProps
+	if o.Region == "" {
+		return fmt.Errorf("Config.Props.Openstack.Region not set")
+	}
+	if o.Domain == "" {
+		return fmt.Errorf("Config.Props.Openstack.Domain not set")
+	}
+	if o.Tenant == "" {
+		return fmt.Errorf("Config.Props.Openstack.Tenant not set")
+	}
+	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", o.Region)
+	osUsername := viper.GetString("os_username")
+	if osUsername == "" {
+		return fmt.Errorf("env variable CCMAAS_OS_USERNAME not configured")
+	}
+	osPassword := viper.GetString("os_password")
+	if osPassword == "" {
+		return fmt.Errorf("env variable CCMAAS_OS_PASSWORD not configured")
+	}
+	c := auto.ConfigMap{
+		"openstack:authUrl":           auto.ConfigValue{Value: osAuthURL},
+		"openstack:region":            auto.ConfigValue{Value: o.Region},
+		"openstack:projectDomainName": auto.ConfigValue{Value: o.Domain},
+		"openstack:tenantName":        auto.ConfigValue{Value: o.Tenant},
+		"openstack:userDomainName":    auto.ConfigValue{Value: o.Domain},
+		"openstack:userName":          auto.ConfigValue{Value: osUsername},
+		"openstack:password":          auto.ConfigValue{Value: osPassword, Secret: true},
+		"openstack:insecure":          auto.ConfigValue{Value: "true"},
+	}
+	s.SetAllConfig(ctx, c)
+	return nil
 }
