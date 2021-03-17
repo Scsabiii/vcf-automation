@@ -1,6 +1,6 @@
 .git
 bin
-!bin/ccmaas_linux_amd64
+!bin/automation_linux_amd64
 ccmaas/viewer
 docker
 k8s

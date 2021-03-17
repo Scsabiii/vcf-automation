@@ -1,16 +1,16 @@
 apiVersion: skaffold/v2beta10
 kind: Config
 metadata:
-  name: ccmaas-operator
+  name: automation
 build:
   artifacts:
-    - image: keppel.eu-de-1.cloud.sap/ccloud/ccmaas-operator
+    - image: keppel.eu-de-1.cloud.sap/ccloud/avocado-automation
       sync:
         manual:
           - src: "projects/esxi/*.go"
             dest: "projects"
             strip: "projects/"
-          - src: "bin/ccmaas_linux_amd64"
+          - src: "bin/automation_linux_amd64"
             dest: "../bin"
             strip: "bin/"
 deploy:

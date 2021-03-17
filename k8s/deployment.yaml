@@ -1,49 +1,43 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: ccmaas-operator
+  name: avacado-automation
 spec:
   selector:
     matchLabels:
-      name: ccmaas-operator
+      name: avacado-automation
   template:
     metadata:
       labels:
-        name: ccmaas-operator
+        name: avacado-automation
     spec:
       containers:
-        - name: ccmaas
-          image: keppel.eu-de-1.cloud.sap/ccloud/ccmaas-operator:latest
-          command: ["/bin/sh", "/entrypoint.sh"]
+        - name: automation
+          image: keppel.eu-de-1.cloud.sap/ccloud/avocado-automation:latest
+          args:
+            - "server"
           env:
             - name: PULUMI_CONFIG_PASSPHRASE
               value: pass4config
-            - name: CCMAAS_PORT
+            - name: PULUMI_BACKEND_URL
+              value: file:///pulumi/avocado/etc
+            - name: AUTOMATION_PORT
               value: "8080"
-            - name: CCMAAS_OS_PASSWORD
+            - name: AUTOMATION_OS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: ccmaas-pass
                   key: os_password
-            - name: CCMAAS_OS_USERNAME
+            - name: AUTOMATION_OS_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: ccmaas-pass
                   key: os_username
           volumeMounts:
-            # - mountPath: /pulumi/config.yaml
-            #   name: pulumi-etc
-            #   subPath: config.yaml
-            - mountPath: /pulumi/ccmaas/etc
+            - mountPath: /pulumi/avocado/etc
               subPath: etc
               name: pvc
-            - mountPath: /pulumi/ccmaas/state
-              subPath: state
-              name: pvc
       volumes:
-        # - name: pulumi-etc
-        #   configMap:
-        #     name: pulumi-etc
         - name: pvc
           persistentVolumeClaim:
             claimName: ccmaas-workspace
