@@ -25,7 +25,7 @@ import (
 
 type Network struct {
 	Network  *networking.Network
-	Sutbnets []*networking.Subnet
+	Sutbnets map[string]*networking.Subnet
 }
 
 type NetworkProp struct {
@@ -48,10 +48,10 @@ func NewNetwork(ctx *pulumi.Context, networkName string, subnetProps ...SubnetPr
 	if err != nil {
 		return nil, err
 	}
-
-	var subnets []*networking.Subnet
+	subnets := make(map[string]*networking.Subnet, 0)
 	for _, prop := range subnetProps {
 		s, err := networking.NewSubnet(ctx, prop.Name, &networking.SubnetArgs{
+			Name:      pulumi.String(prop.Name),
 			Cidr:      pulumi.String(prop.Cidr),
 			IpVersion: pulumi.Int(4),
 			NetworkId: network.ID(),
@@ -59,7 +59,7 @@ func NewNetwork(ctx *pulumi.Context, networkName string, subnetProps ...SubnetPr
 		if err != nil {
 			return nil, err
 		}
-		subnets = append(subnets, s)
+		subnets[prop.Name] = s
 	}
 	return &Network{network, subnets}, nil
 }
