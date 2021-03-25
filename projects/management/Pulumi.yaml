@@ -1,3 +1,4 @@
 name: management
-runtime: go
-description: management domain deployment
+runtime:
+  name: python
+description: A minimal OpenStack Python Pulumi program
