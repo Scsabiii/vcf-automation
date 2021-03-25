@@ -43,6 +43,10 @@ func InitManagementStack(ctx context.Context, stackName, projectDir string) (*Ma
 }
 
 func (s *ManagementStack) Configure(ctx context.Context, cfg *Config) error {
+	err := configureKeypair(ctx, s.Stack, cfg)
+	if err != nil {
+		return err
+	}
 	return configureOpenstack(ctx, s.Stack, cfg)
 }
 
