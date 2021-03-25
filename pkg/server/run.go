@@ -58,10 +58,6 @@ func Run(port int) {
 	log.SetLevel(log.DebugLevel)
 	log.SetOutput(os.Stdout)
 
-	// br := bufio.NewWriter(os.Stdout)
-	// log.SetOutput(br)
-	// br.Flush()
-
 	// read configuration files and initialize controllers
 	log.Infof("read configuration in directory %s", cfgpath)
 	files, err := ioutil.ReadDir(cfgpath)
@@ -84,7 +80,8 @@ func Run(port int) {
 	r.Headers("Content-Type", "application/json")
 	r.HandleFunc("/new", newStackHandler).Methods("POST")
 	r.HandleFunc("/update", updateStackHandler).Methods("POST")
-	r.HandleFunc("/{project}/{stack}/state", getState).Methods("GET")
+	r.HandleFunc("/{project}/{stack}/state", getStackState).Methods("GET")
+	r.HandleFunc("/{project}/{stack}/update", updateStack).Methods("POST")
 	r.Use(loggingMiddleware)
 	http.Handle("/", r)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil))
@@ -109,9 +106,11 @@ func (c *Controller) StartRun() {
 		c.updCh = make(chan bool, 0)
 	}
 	go func() {
-		select {
-		case err := <-c.errCh:
-			c.err = err
+		for {
+			select {
+			case err := <-c.errCh:
+				c.err = err
+			}
 		}
 	}()
 	go c.Controller.Run(c.updCh, c.errCh)

@@ -23,7 +23,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/sapcc/avocado-automation/pkg/controller"
 	log "github.com/sirupsen/logrus"
 )
@@ -86,23 +88,34 @@ func getConfigFromRequestBody(body io.ReadCloser) (*controller.Config, error) {
 	return &c, nil
 }
 
-func getState(w http.ResponseWriter, r *http.Request) {
-	// log.Println("INFO", "handling", r.URL)
-	// vars := mux.Vars(r)
-	// project := vars["project"]
-	// stack := vars["stack"]
-	// fname := fmt.Sprintf("%s-%s.yaml", project, stack)
-	// if c, ok := mgrCache[fname]; ok {
-	// 	if c.err != nil {
-	// 		handleError(w, http.StatusInternalServerError, c.err)
-	// 		return
-	// 	}
-	// 	err := c.Controller.RuntimeError()
-	// 	if err != nil {
-	// 		handleError(w, http.StatusInternalServerError, err)
-	// 		return
-	// 	}
-	// }
+func getStackState(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	project := vars["project"]
+	stack := vars["stack"]
+	fname := fmt.Sprintf("%s-%s.yaml", project, stack)
+	c, err := getController(fname)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+	}
+	if c.err != nil {
+		w.WriteHeader(http.StatusOK)
+		errstr := c.err.Error()
+		errstr = errstr[strings.Index(errstr, "error: "):]
+		w.Write([]byte(errstr))
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func updateStack(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	project := vars["project"]
+	stack := vars["stack"]
+	fname := fmt.Sprintf("%s-%s.yaml", project, stack)
+	c, err := getController(fname)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+	}
+	c.StartUpdateStack()
 	w.WriteHeader(http.StatusOK)
 }
 
