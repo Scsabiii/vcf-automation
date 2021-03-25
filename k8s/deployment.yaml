@@ -5,16 +5,17 @@ metadata:
 spec:
   selector:
     matchLabels:
-      name: avocado-automation
+      app: avocado-automation
   template:
     metadata:
       labels:
-        name: avocado-automation
+        app: avocado-automation
     spec:
       containers:
         - name: automation
           image: keppel.eu-de-1.cloud.sap/ccloud/avocado-automation:latest
-          args:
+          command:
+            - "/pulumi/bin/automation"
             - "server"
           env:
             - name: PULUMI_CONFIG_PASSPHRASE
@@ -37,6 +38,9 @@ spec:
             - mountPath: /pulumi/avocado/etc
               subPath: etc
               name: pvc
+          ports:
+            - containerPort: 8080
+              name: api
       volumes:
         - name: pvc
           persistentVolumeClaim:

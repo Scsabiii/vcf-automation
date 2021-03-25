@@ -7,14 +7,13 @@ build:
     - image: keppel.eu-de-1.cloud.sap/ccloud/avocado-automation
       sync:
         manual:
-          - src: "projects/esxi/*.go"
-            dest: "projects"
-            strip: "projects/"
           - src: "bin/automation_linux_amd64"
             dest: "../bin"
             strip: "bin/"
 deploy:
   kubectl:
     manifests:
-      - k8s/deployment.yaml
+      - k8s/pod.yaml
+      - k8s/service.yaml
+      - k8s/ingress.yaml
     defaultNamespace: ccmaas

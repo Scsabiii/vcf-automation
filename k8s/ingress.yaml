@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+
+metadata:
+  name: avocado-automation
+  labels:
+    system: automation
+    component: avocado
+  annotations:
+    disco: "true"
+
+spec:
+  rules:
+    - host: avocado.automation.qa-de-1.cloud.sap
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: avocado-automation
+              servicePort: 8080

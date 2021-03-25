@@ -1,0 +1,15 @@
+kind: Service
+apiVersion: v1
+
+metadata:
+  name: avocado-automation
+  labels:
+    system: automation
+    component: avocado
+spec:
+  selector:
+    app: avocado-automation
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
