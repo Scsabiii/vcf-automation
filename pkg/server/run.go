@@ -66,11 +66,11 @@ func Run(port int) {
 		os.Exit(1)
 	}
 
-	// initialize filers
-	log.Println("==== initializ filers ====")
-	initialize(files)
+	// initialize controllers
+	log.Println("*** initializ controllers")
+	initializeControllers(files)
 
-	log.Println("==== start run ====")
+	log.Println("*** manager: StartRun()")
 	for _, c := range manager {
 		c.StartRun()
 	}
@@ -87,14 +87,17 @@ func Run(port int) {
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil))
 }
 
-func initialize(files []os.FileInfo) {
+func initializeControllers(files []os.FileInfo) {
 	for _, f := range files {
-		log.Infof("initialize %s", f.Name())
-		_, err := newControllerFromConfigFile(f.Name())
-		if err != nil {
-			log.WithError(err).Error("fail to initialize controller")
+		if f.IsDir() {
 			continue
 		}
+		_, err := newControllerFromConfigFile(f.Name())
+		if err != nil {
+			log.WithError(err).Errorf("%s: controller initialization fails", f.Name())
+			continue
+		}
+		log.Infof("%s: controller initialized", f.Name())
 	}
 }
 
