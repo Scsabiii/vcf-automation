@@ -60,8 +60,9 @@ func NewControllerFromConfigFile(prjpath, cfgfilepath string) (*Controller, erro
 }
 
 func (c *Controller) Run(updateCh chan bool, ch chan error) {
+	tickerDuration := 5 * time.Minute
 	ctx := context.Background()
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(tickerDuration)
 	logger := log.WithFields(log.Fields{
 		"project": c.Project,
 		"stack":   c.Stack,
@@ -113,9 +114,11 @@ func (c *Controller) Run(updateCh chan bool, ch chan error) {
 
 		select {
 		case <-updateCh:
-			// force re-configuring stack; since configuration might have
-			// changed
+			// force re-configuring stack since configuration might have
+			// changed; reset timer so that next update will wait full
+			// tickerDuration
 			c.configured = false
+			ticker.Reset(tickerDuration)
 		case <-ticker.C:
 		case sig := <-sigterm:
 			logger.Infof("stopping controller loop on signal %s", sig)
