@@ -15,6 +15,7 @@ type Controller struct {
 	*Config
 	ConfigFile  string
 	ProjectPath string
+	configured  bool
 	stack       Stack
 	mu          sync.Mutex
 }
@@ -74,6 +75,8 @@ func (c *Controller) Run(updateCh chan bool, ch chan error) {
 					ch <- err
 					return
 				}
+			}
+			if !c.configured {
 				logger.Info("configure stack")
 				err = c.ConfigureStack(ctx)
 				if err != nil {
@@ -81,6 +84,7 @@ func (c *Controller) Run(updateCh chan bool, ch chan error) {
 					ch <- err
 					return
 				}
+				c.configured = true
 			}
 			logger.Info("refresh stack")
 			err = c.RefreshStack(ctx)
@@ -102,12 +106,9 @@ func (c *Controller) Run(updateCh chan bool, ch chan error) {
 
 		select {
 		case <-updateCh:
-			logger.Info("configure stack")
-			err := c.ConfigureStack(ctx)
-			if err != nil {
-				logger.WithError(err).Error("configure stack failed")
-				ch <- err
-			}
+			// force re-configuring stack; since configuration might have
+			// changed
+			c.configured = false
 		case <-ticker.C:
 		}
 	}
