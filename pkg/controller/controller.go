@@ -3,9 +3,12 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -64,6 +67,10 @@ func (c *Controller) Run(updateCh chan bool, ch chan error) {
 		"stack":   c.Stack,
 	})
 
+	// stop controller loop on system signal
+	sigterm := make(chan os.Signal, 1)
+	signal.Notify(sigterm, os.Interrupt, syscall.SIGTERM)
+
 	for {
 		func() {
 			var err error
@@ -110,6 +117,9 @@ func (c *Controller) Run(updateCh chan bool, ch chan error) {
 			// changed
 			c.configured = false
 		case <-ticker.C:
+		case sig := <-sigterm:
+			logger.Infof("stopping controller loop on signal %s", sig)
+			return
 		}
 	}
 
