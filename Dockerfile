@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 		"paramiko>=2.7.1" \
 		"typing_extensions>=3.7.4"
 
-COPY test/etc ${workdir}/etc
+# COPY test/etc ${workdir}/etc
 COPY test/projects/management ${workdir}/projects/management
 COPY bin/automation /pulumi/bin/automation
 
