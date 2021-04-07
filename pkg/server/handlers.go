@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/sapcc/avocado-automation/pkg/controller"
@@ -100,7 +99,7 @@ func getStackState(w http.ResponseWriter, r *http.Request) {
 	if c.err != nil {
 		w.WriteHeader(http.StatusOK)
 		errstr := c.err.Error()
-		errstr = errstr[strings.Index(errstr, "error: "):]
+		// errstr = errstr[strings.Index(errstr, "stderr: "):]
 		w.Write([]byte(errstr))
 	}
 	w.WriteHeader(http.StatusOK)
@@ -121,7 +120,10 @@ func updateStack(w http.ResponseWriter, r *http.Request) {
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println("handling", r.Method, r.RequestURI)
+		log.WithFields(log.Fields{
+			"method": r.Method,
+			"uri":    r.RequestURI,
+		}).Info("handling request")
 		next.ServeHTTP(w, r)
 	})
 }

@@ -60,7 +60,7 @@ func NewControllerFromConfigFile(prjpath, cfgfilepath string) (*Controller, erro
 }
 
 func (c *Controller) Run(updateCh chan bool, ch chan error) {
-	tickerDuration := 5 * time.Minute
+	tickerDuration := 15 * time.Minute
 	ctx := context.Background()
 	ticker := time.NewTicker(tickerDuration)
 	logger := log.WithFields(log.Fields{

@@ -67,7 +67,7 @@ func Run(port int) {
 	}
 
 	// initialize controllers
-	log.Println("*** initializ controllers")
+	log.Println("*** initialize controllers")
 	initializeControllers(files)
 
 	log.Println("*** manager: StartRun()")
