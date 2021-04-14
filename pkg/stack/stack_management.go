@@ -20,7 +20,7 @@ package stack
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
@@ -34,10 +34,70 @@ type ManagementStackState struct {
 	err error
 }
 
+type ManagementStackProps struct {
+	ExternalNetwork    MgmtDomainExternalNetwork   `yaml:"externalNetwork"`
+	ManagementNetwork  MgmtDomainMgmtNetwork       `yaml:"managementNetwork"`
+	DeploymentNetwork  MgmtDomainDeploymentNetwork `yaml:"deploymentNetwork"`
+	PrivateNetworks    []MgmtDomainPrivateNetwork  `yaml:"privateNetworks"`
+	EsxiNodes          []MgmtDomainEsxiNode        `yaml:"esxiNodes"`
+	EsxiServerImage    string                      `yaml:"esxiServerImange"`
+	EsxiServerFlavorID string                      `yaml:"esxiServerFlavorID"`
+	HelperVM           HelperVM                    `yaml:"helperVM"`
+	ReservedIPs        []RerservedIP               `yaml:"reservedIPs"`
+	DNSZoneName        string                      `yaml:"dnsZoneName"`
+	ReverseDNSZoneName string                      `yaml:"reverseDnsZoneName"`
+}
+
+type MgmtDomainExternalNetwork struct {
+	Name string `json:"name,omitempty" yaml:"name"`
+	ID   string `json:"id,omitempty" yaml:"id"`
+}
+
+type MgmtDomainMgmtNetwork struct {
+	NetworkName   string `yaml:"networkName" json:"name,omitempty"`
+	SubnetName    string `yaml:"subnetName" json:"subnet_name,omitempty"`
+	SubnetGateway string `yaml:"subnetGateway" json:"subnet_gateway,omitempty"`
+	SubnetMask    string `yaml:"subnetMask" json:"subnet_mask,omitempty"`
+	VlanID        int    `yaml:"vlanID" json:"vlan_id,omitempty"`
+	EsxiInterface string `yaml:"esxiInterface" json:"esxi_interface,omitempty"`
+}
+
+type MgmtDomainDeploymentNetwork struct {
+	NetworkName string `yaml:"networkName" json:"name,omitempty"`
+	CIDR        string `yaml:"cidr" json:"cidr,omitempty"`
+	Gateway     string `yaml:"gatewayIP" json:"gateway_ip,omitempty"`
+}
+
+type MgmtDomainPrivateNetwork struct {
+	NetworkName   string `yaml:"networkName" json:"name,omitempty"`
+	CIDR          string `yaml:"cidr" json:"cidr,omitempty"`
+	VlanID        int    `yaml:"vlanID" json:"vlan_id,omitempty"`
+	EsxiInterface string `yaml:"esxiInterface" json:"esxi_interface,omitempty"`
+}
+
+type MgmtDomainEsxiNode struct {
+	Name      string `yaml:"name" json:"name,omitempty"`
+	ID        string `yaml:"id" json:"id,omitempty"`
+	IP        string `yaml:"ip" json:"ip,omitempty"`
+	ImageName string `yaml:"imageName" json:"image_name,omitempty"`
+}
+
+type HelperVM struct {
+	FlavorID   string `yaml:"flavorID" json:"flavor_id,omitempty"`
+	FlavorName string `yaml:"flavorName" json:"flavor_name,omitempty"`
+	ImageName  string `yaml:"imageName" json:"image_name,omitempty"`
+	IP         string `yaml:"ip" json:"ip,omitempty"`
+}
+
+type RerservedIP struct {
+	IP   string `yaml:"ip" json:"ip,omitempty"`
+	Name string `yaml:"name" json:"name,omitempty"`
+}
+
 func InitManagementStack(ctx context.Context, stackName, projectDir string) (*ManagementStack, error) {
 	s, err := auto.UpsertStackLocalSource(ctx, stackName, projectDir)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create or select stack: %v\n", err)
+		return nil, err
 	}
 	return &ManagementStack{s, ManagementStackState{}}, nil
 }
@@ -47,7 +107,77 @@ func (s *ManagementStack) Configure(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	return configureOpenstack(ctx, s.Stack, cfg)
+	err = configureOpenstack(ctx, s.Stack, cfg)
+	if err != nil {
+		return err
+	}
+	p := ManagementStackProps{}
+	err = GetStackPropsFromConfig(cfg, &p)
+	if err != nil {
+		return err
+	}
+	if (p.ExternalNetwork != MgmtDomainExternalNetwork{}) {
+		if en, err := json.Marshal(p.ExternalNetwork); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "externalNetwork", auto.ConfigValue{Value: string(en)})
+		}
+	}
+	if (p.ManagementNetwork != MgmtDomainMgmtNetwork{}) {
+		if mn, err := json.Marshal(p.ManagementNetwork); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "managementNetwork", auto.ConfigValue{Value: string(mn)})
+		}
+	}
+	if (p.DeploymentNetwork != MgmtDomainDeploymentNetwork{}) {
+		if dn, err := json.Marshal(p.DeploymentNetwork); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "deploymentNetwork", auto.ConfigValue{Value: string(dn)})
+		}
+	}
+	if p.PrivateNetworks != nil {
+		if pn, err := json.Marshal(p.PrivateNetworks); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "privateNetworks", auto.ConfigValue{Value: string(pn)})
+		}
+	}
+	if (p.HelperVM != HelperVM{}) {
+		if n, err := json.Marshal(p.HelperVM); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "helperVM", auto.ConfigValue{Value: string(n)})
+		}
+	}
+	if p.ReservedIPs != nil {
+		if n, err := json.Marshal(p.ReservedIPs); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "reservedIPs", auto.ConfigValue{Value: string(n)})
+		}
+	}
+	if p.EsxiNodes != nil {
+		if n, err := json.Marshal(p.EsxiNodes); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "esxiNodes", auto.ConfigValue{Value: string(n)})
+		}
+	}
+	if p.EsxiServerImage != "" {
+		s.SetConfig(ctx, "esxiServerImange", auto.ConfigValue{Value: p.EsxiServerImage})
+	}
+	if p.EsxiServerFlavorID != "" {
+		s.SetConfig(ctx, "esxiServerFlavorID", auto.ConfigValue{Value: p.EsxiServerFlavorID})
+	}
+	if p.DNSZoneName != "" {
+		s.SetConfig(ctx, "dnsZoneName", auto.ConfigValue{Value: p.DNSZoneName})
+	}
+	if p.ReverseDNSZoneName != "" {
+		s.SetConfig(ctx, "reverseDnsZoneName", auto.ConfigValue{Value: p.ReverseDNSZoneName})
+	}
+	return nil
 }
 
 func (s *ManagementStack) GenYaml(ctx context.Context, cfg *Config) ([]byte, error) {

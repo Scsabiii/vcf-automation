@@ -9,6 +9,9 @@ projects/*/.pulumi
 projects/*/Pulumi.*
 !projects/*/Pulumi.yaml
 projects/example-python
+test/projects/*/.pulumi
+test/projects/*/Pulumi.*
+!test/projects/*/Pulumi.yaml
 LICENSE
 README.md
 skaffold.yaml
