@@ -21,6 +21,7 @@ package controller
 import (
 	"fmt"
 	"io/ioutil"
+	"path"
 	"path/filepath"
 
 	"gopkg.in/yaml.v2"
@@ -47,17 +48,25 @@ type ProjectType string
 type Props struct {
 	OpenstackProps OpenstackProps `json:"openstack" yaml:"openstack"`
 	StackProps     StackProps     `json:"stack" yaml:"stack"`
+	Keypair        Keypair
 }
-
-// StackProps is a empty type, and should be used as project specific
-// StackProps when possible
-type StackProps interface{}
 
 // OpenstackProps
 type OpenstackProps struct {
 	Region string `json:"region" yaml:"region"`
 	Domain string `json:"domain" yaml:"domain"`
 	Tenant string `json:"tenant" yaml:"tenant"`
+}
+
+// StackProps is a empty type, a placeholder for the project specific
+// properties
+type StackProps interface{}
+
+// Keypair stores ssh key pairs, which is loaded from the disk
+type Keypair struct {
+	keyPath    string
+	publicKey  string
+	privateKey string
 }
 
 // FileName generates the configuration file name with yaml extension
@@ -104,6 +113,22 @@ func writeConfig(fpath string, c *Config, overwrite bool) error {
 		return err
 	}
 	return ioutil.WriteFile(fpath, b, 0644)
+}
+
+func (c *Config) readKeypair(fpath string) error {
+	publicKeyPath := path.Join(fpath, "id_rsa.pub")
+	privateKeyPath := path.Join(fpath, "id_rsa")
+	if kb, err := ioutil.ReadFile(publicKeyPath); err != nil {
+		return err
+	} else {
+		c.Props.Keypair.publicKey = string(kb)
+	}
+	if kb, err := ioutil.ReadFile(privateKeyPath); err != nil {
+		return err
+	} else {
+		c.Props.Keypair.privateKey = "\n" + string(kb)
+	}
+	return nil
 }
 
 // MergeStackPropsToConfig merges the Props.StackProps field from s into Config c.

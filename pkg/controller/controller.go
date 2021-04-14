@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -32,7 +33,8 @@ func NewController(ppath, cpath string, c *Config) (*Controller, error) {
 	l := Controller{
 		ProjectPath: ppath,
 		ConfigFile:  path.Join(cpath, c.FileName()),
-		Config:      c}
+		Config:      c,
+	}
 	err = writeConfig(l.ConfigFile, c, false)
 	if err != nil {
 		return nil, err
@@ -52,9 +54,9 @@ func NewControllerFromConfigFile(prjpath, cfgfilepath string) (*Controller, erro
 		return nil, err
 	}
 	l := Controller{
-		Config:      c,
 		ProjectPath: prjpath,
 		ConfigFile:  cfgfilepath,
+		Config:      c,
 	}
 	return &l, nil
 }
@@ -122,6 +124,7 @@ func (c *Controller) Run(updateCh chan bool, ch chan error) {
 		case <-ticker.C:
 		case sig := <-sigterm:
 			logger.Infof("stopping controller loop on signal %s", sig)
+			ticker.Stop()
 			return
 		}
 	}
@@ -191,14 +194,40 @@ func (l *Controller) InitStack(ctx context.Context) error {
 	return nil
 }
 
-func (l *Controller) ConfigureStack(ctx context.Context) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.stack == nil {
+// ConfigureStack applies c.Config to the stack's configuration file, by
+// calling stack's Configure() function.
+//
+// Note: The stack configuration file is a yaml file located in the project
+// directory, with name Pulumi.{stack_name}.yaml. Controller updates the file
+// in each loop to make sure it is always consistent with the controller's
+// Config.
+//
+// Note: SSH key pair files (id_rsa and id_rsa.pub) are in the .ssh/
+// subdirectory of the directory where config file locates. If the config file
+// path is /foo/bar/config.yaml, the ssh key files are /foo/bar/.ssh/id_rsa and
+// /foo/bar/.ssh/id_rsa.pub.  The stack's Configure() function should return
+// ErrKeypairNotSet if the key pair is not read yet (see inline comment below).
+func (c *Controller) ConfigureStack(ctx context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stack == nil {
 		return fmt.Errorf("stack uninitialized")
 	}
-	if err := l.stack.Configure(ctx, l.Config); err != nil {
-		return err
+	if err := c.stack.Configure(ctx, c.Config); err != nil {
+		// Read the keypair from disk and run stack's Configure() function
+		// again, if the keypair is not read yet.
+		if errors.Is(err, ErrKeypairNotSet) {
+			err = c.readKeypair(path.Join(path.Dir(c.ConfigFile), ".ssh"))
+			if err != nil {
+				return err
+			}
+			err = c.stack.Configure(ctx, c.Config)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
 	}
 	return nil
 }
@@ -228,63 +257,3 @@ func (c *Controller) UpdateStack(ctx context.Context) error {
 	}
 	return nil
 }
-
-// func (c *Controller) DestoryStack(ctx context.Context) error {
-// 	c.mu.Lock()
-// 	defer c.mu.Unlock()
-// 	fmt.Println("INFO", "Starting stack destroy")
-// 	if err := c.stack.Destroy(ctx); err != nil {
-// 		fmt.Printf("Failed to update stack: %v\n\n", err)
-// 		return err
-// 	}
-// 	fmt.Println("Stack successfully destroyed")
-// 	return nil
-// }
-
-func (c *Controller) PrintStackResources() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	printStackResources(c.Stack)
-}
-
-// func (c *Controller) State() ([]byte, error) {
-// 	c.mu.Lock()
-// 	defer c.mu.Unlock()
-// 	if c.stack == nil {
-// 		return nil, fmt.Errorf("stack uninitialized")
-// 	}
-// 	return json.Marshal(c.stack.State())
-// }
-
-// func (c *Controller) GetState(ctx context.Context) error {
-// 	s := c.stack
-// 	if s == nil {
-// 		return ErrStackNotInitialized
-// 	}
-// 	return nil
-// }
-
-// func (c *Controller) PrintStackOutputs(ctx context.Context) {
-// 	outs, err := c.stack.Outputs(ctx)
-// 	if err != nil {
-// 		fmt.Printf("PrintOutputs: %v\n", err)
-// 		os.Exit(1)
-// 	}
-// 	printOutputs(outs)
-// }
-// func printOutputs(outs auto.OutputMap) {
-// 	var value string
-// 	for key, out := range outs {
-// 		switch v := out.Value.(type) {
-// 		case string:
-// 			value = v
-// 		case int:
-// 			value = strconv.Itoa(v)
-// 		case int64:
-// 			value = fmt.Sprintf("%d", v)
-// 		default:
-// 			value = ""
-// 		}
-// 		fmt.Printf("%30s\t%s\n", key, value)
-// 	}
-// }

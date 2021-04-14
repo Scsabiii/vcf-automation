@@ -112,7 +112,6 @@ func sortResources(resources []apitype.ResourceV3) map[string][]Resource {
 			nodes[parentURN] = c
 		}
 	}
-
 	return nodes
 }
 
@@ -130,6 +129,12 @@ func printResources(res map[string][]Resource, resourceURN, prefix string) {
 		log.Printf("%s %s[%s]: %s %s\n", prefix, r.Name, r.Type, r.Instance, r.ID)
 		printResources(res, r.URNName, prefix+"\t")
 	}
+}
+
+func (c *Controller) PrintStackResources() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	printStackResources(c.Stack)
 }
 
 // config openstack
@@ -154,15 +159,38 @@ func configureOpenstack(ctx context.Context, s auto.Stack, cfg *Config) error {
 		return fmt.Errorf("env variable CCMAAS_OS_PASSWORD not configured")
 	}
 	c := auto.ConfigMap{
-		"openstack:authUrl":           auto.ConfigValue{Value: osAuthURL},
-		"openstack:region":            auto.ConfigValue{Value: o.Region},
-		"openstack:projectDomainName": auto.ConfigValue{Value: o.Domain},
-		"openstack:tenantName":        auto.ConfigValue{Value: o.Tenant},
-		"openstack:userDomainName":    auto.ConfigValue{Value: o.Domain},
-		"openstack:userName":          auto.ConfigValue{Value: osUsername},
-		"openstack:password":          auto.ConfigValue{Value: osPassword, Secret: true},
-		"openstack:insecure":          auto.ConfigValue{Value: "true"},
+		"openstack:authUrl":           configValue(osAuthURL),
+		"openstack:region":            configValue(o.Region),
+		"openstack:projectDomainName": configValue(o.Domain),
+		"openstack:tenantName":        configValue(o.Tenant),
+		"openstack:userDomainName":    configValue(o.Domain),
+		"openstack:userName":          configValue(osUsername),
+		"openstack:insecure":          configValue("true"),
+		"openstack:password":          configSecret(osPassword),
 	}
-	s.SetAllConfig(ctx, c)
+	return s.SetAllConfig(ctx, c)
+}
+
+// config key pair
+func configureKeypair(ctx context.Context, s auto.Stack, cfg *Config) error {
+	if cfg.Props.Keypair.publicKey == "" || cfg.Props.Keypair.privateKey == "" {
+		return ErrKeypairNotSet
+	}
+	err := s.SetConfig(ctx, "publicKey", configValue(cfg.Props.Keypair.publicKey))
+	if err != nil {
+		return err
+	}
+	err = s.SetConfig(ctx, "privateKey", configSecret(cfg.Props.Keypair.privateKey))
+	if err != nil {
+		return err
+	}
 	return nil
+}
+
+func configValue(v string) auto.ConfigValue {
+	return auto.ConfigValue{Value: v}
+}
+
+func configSecret(v string) auto.ConfigValue {
+	return auto.ConfigValue{Value: v, Secret: true}
 }
