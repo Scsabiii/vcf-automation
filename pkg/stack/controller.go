@@ -61,7 +61,7 @@ func NewControllerFromConfigFile(prjpath, cfgfilepath string) (*Controller, erro
 	return &l, nil
 }
 
-func (c *Controller) Run(updateCh chan bool, ch chan error) {
+func (c *Controller) Run(updateCh <-chan bool, errCh chan error, ok chan bool) {
 	tickerDuration := 15 * time.Minute
 	ctx := context.Background()
 	ticker := time.NewTicker(tickerDuration)
@@ -82,7 +82,7 @@ func (c *Controller) Run(updateCh chan bool, ch chan error) {
 				err = c.InitStack(ctx)
 				if err != nil {
 					logger.WithError(err).Error("initialize stack failed")
-					ch <- err
+					errCh <- err
 					return
 				}
 			}
@@ -91,7 +91,7 @@ func (c *Controller) Run(updateCh chan bool, ch chan error) {
 				err = c.ConfigureStack(ctx)
 				if err != nil {
 					logger.WithError(err).Error("configure stack failed")
-					ch <- err
+					errCh <- err
 					return
 				}
 				c.configured = true
@@ -100,16 +100,17 @@ func (c *Controller) Run(updateCh chan bool, ch chan error) {
 			err = c.RefreshStack(ctx)
 			if err != nil {
 				logger.WithError(err).Error("refresh stack failed")
-				ch <- err
+				errCh <- err
 				return
 			}
 			logger.Info("update stack")
 			err = c.UpdateStack(ctx)
 			if err != nil {
 				logger.WithError(err).Error("update stack failed")
-				ch <- err
+				errCh <- err
 				return
 			}
+			ok <- true
 			logger.Info("stack resources:")
 			c.PrintStackResources()
 		}()

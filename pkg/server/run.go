@@ -47,6 +47,7 @@ type Controller struct {
 	err   error
 	errCh chan error
 	updCh chan bool
+	okCh  chan bool
 }
 
 func Run(port int) {
@@ -108,15 +109,20 @@ func (c *Controller) StartRun() {
 	if c.updCh == nil {
 		c.updCh = make(chan bool, 0)
 	}
+	if c.okCh == nil {
+		c.okCh = make(chan bool, 0)
+	}
 	go func() {
 		for {
 			select {
 			case err := <-c.errCh:
 				c.err = err
+			case <-c.okCh:
+				c.err = nil
 			}
 		}
 	}()
-	go c.Controller.Run(c.updCh, c.errCh)
+	go c.Controller.Run(c.updCh, c.errCh, c.okCh)
 }
 
 func (c *Controller) StartUpdateStack() {
@@ -148,7 +154,7 @@ func newControllerFromConfig(cfg *controller.Config) (*Controller, error) {
 	if manager == nil {
 		manager = make(Manager)
 	}
-	c := Controller{l, nil, nil, nil}
+	c := Controller{l, nil, nil, nil, nil}
 	manager[l.FileName()] = &c
 	return &c, nil
 }
@@ -164,7 +170,7 @@ func newControllerFromConfigFile(fname string) (*Controller, error) {
 	if manager == nil {
 		manager = make(Manager)
 	}
-	c := Controller{l, nil, nil, nil}
+	c := Controller{l, nil, nil, nil, nil}
 	manager[l.FileName()] = &c
 	return &c, nil
 }
