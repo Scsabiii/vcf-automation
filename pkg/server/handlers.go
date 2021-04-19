@@ -25,7 +25,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/sapcc/avocado-automation/pkg/controller"
+	"github.com/sapcc/avocado-automation/pkg/stack"
 	log "github.com/sirupsen/logrus"
 )
 
