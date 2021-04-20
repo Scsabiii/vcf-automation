@@ -70,10 +70,10 @@ func updateStackHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(l.Config)
 }
 
-func getConfigFromRequestBody(body io.ReadCloser) (*controller.Config, error) {
+func getConfigFromRequestBody(body io.ReadCloser) (*stack.Config, error) {
 	decoder := json.NewDecoder(body)
 	defer body.Close()
-	c := controller.Config{}
+	c := stack.Config{}
 	err := decoder.Decode(&c)
 	if err != nil {
 		return nil, err

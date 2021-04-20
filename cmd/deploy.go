@@ -31,7 +31,7 @@ import (
 var (
 	outputs bool
 	yaml    bool
-	ctl     controller.Controller
+	ctl     stack.Controller
 )
 
 var deployCmd = &cobra.Command{
@@ -44,10 +44,10 @@ var deployCmd = &cobra.Command{
 		workdir := viper.GetString("workdir")
 		prjdir := path.Join(workdir, "projects")
 		etcdir := path.Join(workdir, "etc")
-		project, stack := extractProjectStack(args)
-		fname := fmt.Sprintf("%s-%s.yaml", project, stack)
+		projectName, stackName := extractProjectStack(args)
+		fname := fmt.Sprintf("%s-%s.yaml", projectName, stackName)
 		fpath := path.Join(etcdir, fname)
-		c, err := controller.NewControllerFromConfigFile(prjdir, fpath)
+		c, err := stack.NewControllerFromConfigFile(prjdir, fpath)
 		if err != nil {
 			logErrorAndExit(err)
 		}

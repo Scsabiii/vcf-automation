@@ -43,7 +43,7 @@ var (
 type Manager map[string]*Controller
 
 type Controller struct {
-	*controller.Controller
+	*stack.Controller
 	err   error
 	errCh chan error
 	updCh chan bool
@@ -144,10 +144,10 @@ func getController(fname string) (*Controller, error) {
 	}
 }
 
-func newControllerFromConfig(cfg *controller.Config) (*Controller, error) {
+func newControllerFromConfig(cfg *stack.Config) (*Controller, error) {
 	mu.Lock()
 	defer mu.Unlock()
-	l, err := controller.NewController(prjpath, cfgpath, cfg)
+	l, err := stack.NewController(prjpath, cfgpath, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func newControllerFromConfigFile(fname string) (*Controller, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	fpath := path.Join(cfgpath, fname)
-	l, err := controller.NewControllerFromConfigFile(prjpath, fpath)
+	l, err := stack.NewControllerFromConfigFile(prjpath, fpath)
 	if err != nil {
 		return nil, err
 	}
