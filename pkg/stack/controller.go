@@ -17,11 +17,11 @@ import (
 
 type Controller struct {
 	*Config
-	ConfigFile  string
-	ProjectPath string
-	configured  bool
-	stack       Stack
-	mu          sync.Mutex
+	ConfigFilePath string
+	ProjectPath    string
+	configured     bool
+	stack          Stack
+	mu             sync.Mutex
 }
 
 // NewController creates controller with given Config c, and writes the config to disk
@@ -31,11 +31,11 @@ func NewController(ppath, cpath string, c *Config) (*Controller, error) {
 		return nil, err
 	}
 	l := Controller{
-		ProjectPath: ppath,
-		ConfigFile:  path.Join(cpath, c.FileName()),
-		Config:      c,
+		ProjectPath:    ppath,
+		ConfigFilePath: path.Join(cpath, c.FileName()),
+		Config:         c,
 	}
-	err = writeConfig(l.ConfigFile, c, false)
+	err = writeConfig(l.ConfigFilePath, c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -54,9 +54,9 @@ func NewControllerFromConfigFile(prjpath, cfgfilepath string) (*Controller, erro
 		return nil, err
 	}
 	l := Controller{
-		ProjectPath: prjpath,
-		ConfigFile:  cfgfilepath,
-		Config:      c,
+		ProjectPath:    prjpath,
+		ConfigFilePath: cfgfilepath,
+		Config:         c,
 	}
 	return &l, nil
 }
@@ -148,7 +148,7 @@ func (l *Controller) UpdateConfig(s *Config) error {
 	if err != nil {
 		return err
 	}
-	err = writeConfig(l.ConfigFile, nc, true)
+	err = writeConfig(l.ConfigFilePath, nc, true)
 	if err != nil {
 		return err
 	}
@@ -218,7 +218,7 @@ func (c *Controller) ConfigureStack(ctx context.Context) error {
 		// Read the keypair from disk and run stack's Configure() function
 		// again, if the keypair is not read yet.
 		if errors.Is(err, ErrKeypairNotSet) {
-			err = c.readKeypair(path.Join(path.Dir(c.ConfigFile), ".ssh"))
+			err = c.readKeypair(path.Join(path.Dir(c.ConfigFilePath), ".ssh"))
 			if err != nil {
 				return err
 			}

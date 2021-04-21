@@ -35,12 +35,11 @@ func newStackHandler(w http.ResponseWriter, r *http.Request) {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
-	c, err := newControllerFromConfig(cfg)
+	c, err := manager.RegisterNewConfig(cfg)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
-	c.StartRun()
 
 	// request is ok;
 	w.WriteHeader(http.StatusOK)
@@ -53,7 +52,7 @@ func updateStackHandler(w http.ResponseWriter, r *http.Request) {
 		handleError(w, http.StatusUnprocessableEntity, err)
 		return
 	}
-	l, err := getController(c.FileName())
+	l, err := manager.Get(c.FileName())
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 	}
@@ -63,7 +62,7 @@ func updateStackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// trigger stack update
-	l.StartUpdateStack()
+	l.TriggerUpdateStack()
 
 	// request is ok;
 	w.WriteHeader(http.StatusOK)
@@ -88,11 +87,7 @@ func getConfigFromRequestBody(body io.ReadCloser) (*stack.Config, error) {
 }
 
 func getStackState(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	project := vars["project"]
-	stack := vars["stack"]
-	fname := fmt.Sprintf("%s-%s.yaml", project, stack)
-	c, err := getController(fname)
+	c, err := getControllerForRequest(r)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 	}
@@ -106,15 +101,11 @@ func getStackState(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateStack(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	project := vars["project"]
-	stack := vars["stack"]
-	fname := fmt.Sprintf("%s-%s.yaml", project, stack)
-	c, err := getController(fname)
+	c, err := getControllerForRequest(r)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 	}
-	c.StartUpdateStack()
+	c.TriggerUpdateStack()
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -133,4 +124,12 @@ func handleError(w http.ResponseWriter, statusCode int, e error) {
 	msg := fmt.Sprintf("%d - %s", statusCode, e)
 	log.WithField("code", statusCode).WithError(e).Error("handling error")
 	json.NewEncoder(w).Encode(msg)
+}
+
+func getControllerForRequest(r *http.Request) (*StackController, error) {
+	vars := mux.Vars(r)
+	project := vars["project"]
+	stack := vars["stack"]
+	fname := fmt.Sprintf("%s-%s.yaml", project, stack)
+	return manager.Get(fname)
 }

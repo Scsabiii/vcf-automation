@@ -24,56 +24,44 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"sync"
 
 	"github.com/gorilla/mux"
-	"github.com/sapcc/avocado-automation/pkg/stack"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
 var (
-	workdir string
-	cfgpath string
-	prjpath string
 	manager Manager
-	mu      sync.Mutex
 )
 
-type Manager map[string]*Controller
-
-type Controller struct {
-	*stack.Controller
-	err   error
-	errCh chan error
-	updCh chan bool
-	okCh  chan bool
-}
-
 func Run(port int) {
-	workdir = viper.GetString("workdir")
-	cfgpath = path.Join(workdir, "etc")
-	prjpath = path.Join(workdir, "projects")
+	workdir := viper.GetString("workdir")
 
 	log.SetFormatter(&log.TextFormatter{})
 	log.SetLevel(log.DebugLevel)
 	log.SetOutput(os.Stdout)
 
-	// read configuration files and initialize controllers
-	log.Infof("read configuration in directory %s", cfgpath)
-	files, err := ioutil.ReadDir(cfgpath)
-	if err != nil {
-		log.Error(err)
-		os.Exit(1)
+	manager = Manager{
+		ProjectDirectory: path.Join(workdir, "projects"),
+		ConfigDirectory:  path.Join(workdir, "etc"),
 	}
 
-	// initialize controllers
-	log.Println("*** initialize controllers")
-	initializeControllers(files)
-
-	log.Println("*** manager: StartRun()")
-	for _, c := range manager {
-		c.StartRun()
+	// read configuration files and initialize controllers
+	log.Infof("read configuration in directory %s", manager.ConfigDirectory)
+	if files, err := ioutil.ReadDir(manager.ConfigDirectory); err == nil {
+		for _, f := range files {
+			if f.IsDir() {
+				continue
+			}
+			if err := manager.RegisterConfigFile(f); err == nil {
+				log.Infof("register %s done", f.Name())
+			} else {
+				log.Error(err)
+			}
+		}
+	} else {
+		log.Error(err)
+		os.Exit(1)
 	}
 
 	log.Printf("listening on port %d", port)
@@ -86,91 +74,4 @@ func Run(port int) {
 	r.Use(loggingMiddleware)
 	http.Handle("/", r)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil))
-}
-
-func initializeControllers(files []os.FileInfo) {
-	for _, f := range files {
-		if f.IsDir() {
-			continue
-		}
-		_, err := newControllerFromConfigFile(f.Name())
-		if err != nil {
-			log.WithError(err).Errorf("%s: controller initialization fails", f.Name())
-			continue
-		}
-		log.Infof("%s: controller initialized", f.Name())
-	}
-}
-
-func (c *Controller) StartRun() {
-	if c.errCh == nil {
-		c.errCh = make(chan error, 0)
-	}
-	if c.updCh == nil {
-		c.updCh = make(chan bool, 0)
-	}
-	if c.okCh == nil {
-		c.okCh = make(chan bool, 0)
-	}
-	go func() {
-		for {
-			select {
-			case err := <-c.errCh:
-				c.err = err
-			case <-c.okCh:
-				c.err = nil
-			}
-		}
-	}()
-	go c.Controller.Run(c.updCh, c.errCh, c.okCh)
-}
-
-func (c *Controller) StartUpdateStack() {
-	go func() {
-		c.updCh <- true
-	}()
-}
-
-func getController(fname string) (*Controller, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	if manager == nil {
-		return nil, fmt.Errorf("no manager: %s", fname)
-	}
-	if s, ok := manager[fname]; !ok {
-		return nil, fmt.Errorf("no manager: %s", fname)
-	} else {
-		return s, nil
-	}
-}
-
-func newControllerFromConfig(cfg *stack.Config) (*Controller, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	l, err := stack.NewController(prjpath, cfgpath, cfg)
-	if err != nil {
-		return nil, err
-	}
-	if manager == nil {
-		manager = make(Manager)
-	}
-	c := Controller{l, nil, nil, nil, nil}
-	manager[l.FileName()] = &c
-	return &c, nil
-}
-
-func newControllerFromConfigFile(fname string) (*Controller, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	fpath := path.Join(cfgpath, fname)
-	l, err := stack.NewControllerFromConfigFile(prjpath, fpath)
-	if err != nil {
-		return nil, err
-	}
-	if manager == nil {
-		manager = make(Manager)
-	}
-	c := Controller{l, nil, nil, nil, nil}
-	manager[l.FileName()] = &c
-	return &c, nil
 }
