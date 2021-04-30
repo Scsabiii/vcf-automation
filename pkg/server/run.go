@@ -19,59 +19,83 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
+	"syscall"
+	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/sapcc/avocado-automation/pkg/stack"
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 )
 
 var (
-	manager Manager
+	manager *Manager
 )
 
 func Run(port int) {
-	workdir := viper.GetString("workdir")
-
 	log.SetFormatter(&log.TextFormatter{})
 	log.SetLevel(log.DebugLevel)
 	log.SetOutput(os.Stdout)
 
-	manager = Manager{
-		ProjectDirectory: path.Join(workdir, "projects"),
-		ConfigDirectory:  path.Join(workdir, "etc"),
-	}
+	manager = NewManager()
+	log.Infof("configuration directory %s", manager.ConfigDirectory)
+	log.Infof("project directory: %s", manager.ProjectDirectory)
 
 	// read configuration files and initialize controllers
-	log.Infof("read configuration in directory %s", manager.ConfigDirectory)
-	if files, err := ioutil.ReadDir(manager.ConfigDirectory); err == nil {
-		for _, f := range files {
-			if f.IsDir() {
-				continue
-			}
-			if err := manager.RegisterConfigFile(f); err == nil {
-				log.Infof("register %s done", f.Name())
-			} else {
-				log.Error(err)
-			}
+	files, err := ioutil.ReadDir(manager.ConfigDirectory)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, f := range files {
+		if f.IsDir() {
+			continue
 		}
-	} else {
-		log.Error(err)
-		os.Exit(1)
+		c, err := stack.ReadConfig(path.Join(manager.ConfigDirectory, f.Name()))
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		_, err = manager.RegisterConfig(c)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		log.Infof("register %s done", f.Name())
 	}
 
-	log.Printf("listening on port %d", port)
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	r := mux.NewRouter()
+	r.Use(loggingMiddleware)
 	r.Headers("Content-Type", "application/json")
 	r.HandleFunc("/new", newStackHandler).Methods("POST")
 	r.HandleFunc("/update", updateStackHandler).Methods("POST")
 	r.HandleFunc("/{project}/{stack}/state", getStackState).Methods("GET")
 	r.HandleFunc("/{project}/{stack}/update", updateStack).Methods("POST")
-	r.Use(loggingMiddleware)
-	http.Handle("/", r)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil))
+
+	s := &http.Server{
+		Handler:      r,
+		Addr:         fmt.Sprintf("localhost:%d", port),
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+	}
+
+	go func() {
+		log.Printf("listening on port %d", port)
+		if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error(err)
+		}
+	}()
+
+	<-stop
+	s.Shutdown(ctx)
 }

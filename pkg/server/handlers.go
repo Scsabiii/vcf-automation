@@ -91,13 +91,13 @@ func getStackState(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 	}
-	if c.err != nil {
+	if stackErr := c.GetError(); stackErr != nil {
 		w.WriteHeader(http.StatusOK)
-		errstr := c.err.Error()
-		// errstr = errstr[strings.Index(errstr, "stderr: "):]
-		w.Write([]byte(errstr))
+		w.Write([]byte(stackErr.Error()))
+	} else {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("no error in stack deployment"))
 	}
-	w.WriteHeader(http.StatusOK)
 }
 
 func updateStack(w http.ResponseWriter, r *http.Request) {

@@ -20,41 +20,38 @@ package server
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
 	"path"
 	"sync"
-	"syscall"
 
 	"github.com/sapcc/avocado-automation/pkg/stack"
+	"github.com/spf13/viper"
 )
 
 type Manager struct {
 	controllers      map[string]*StackController
 	ProjectDirectory string
 	ConfigDirectory  string
-	*sync.Mutex
+	sync.Mutex
 }
 
 type StackController struct {
 	*stack.Controller
-	err   error
-	errCh chan error
 	updCh chan bool
-	okCh  chan bool
 }
 
-func (m Manager) RegisterConfigFile(configFile os.FileInfo) error {
-	configFilePath := path.Join(m.ConfigDirectory, configFile.Name())
-	c, err := stack.NewControllerFromConfigFile(m.ProjectDirectory, configFilePath)
-	if err != nil {
-		return err
+func NewManager() *Manager {
+	workdir := viper.GetString("workdir")
+	projectdir := viper.GetString("project_dir")
+	if projectdir == "" {
+		projectdir = path.Join(workdir, "projects")
 	}
-	m.register(c)
-	return nil
+	return &Manager{
+		ProjectDirectory: projectdir,
+		ConfigDirectory:  path.Join(workdir, "etc"),
+	}
 }
 
-func (m Manager) RegisterNewConfig(cfg *stack.Config) (*StackController, error) {
+func (m *Manager) RegisterConfig(cfg *stack.Config) (*StackController, error) {
 	c, err := stack.NewController(m.ProjectDirectory, m.ConfigDirectory, cfg)
 	if err != nil {
 		return nil, err
@@ -62,7 +59,19 @@ func (m Manager) RegisterNewConfig(cfg *stack.Config) (*StackController, error) 
 	return m.register(c), nil
 }
 
-func (m Manager) register(c *stack.Controller) *StackController {
+func (m *Manager) RegisterNewConfig(cfg *stack.Config) (*StackController, error) {
+	c, err := stack.NewController(m.ProjectDirectory, m.ConfigDirectory, cfg)
+	if err != nil {
+		return nil, err
+	}
+	err = stack.WriteNewConfig(c.ConfigFilePath, c.Config)
+	if err != nil {
+		return nil, err
+	}
+	return m.register(c), nil
+}
+
+func (m *Manager) register(c *stack.Controller) *StackController {
 	m.Lock()
 	defer m.Unlock()
 	if m.controllers == nil {
@@ -75,7 +84,7 @@ func (m Manager) register(c *stack.Controller) *StackController {
 	return &sc
 }
 
-func (m Manager) Get(key string) (*StackController, error) {
+func (m *Manager) Get(key string) (*StackController, error) {
 	m.Lock()
 	defer m.Unlock()
 	errNotFound := fmt.Errorf("%q not found", key)
@@ -90,30 +99,10 @@ func (m Manager) Get(key string) (*StackController, error) {
 }
 
 func (c *StackController) Run() {
-	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, os.Interrupt, syscall.SIGTERM)
-	if c.errCh == nil {
-		c.errCh = make(chan error, 0)
-	}
 	if c.updCh == nil {
 		c.updCh = make(chan bool, 0)
 	}
-	if c.okCh == nil {
-		c.okCh = make(chan bool, 0)
-	}
-	c.Controller.Run(c.updCh, c.errCh, c.okCh)
-	go func() {
-		for {
-			select {
-			case err := <-c.errCh:
-				c.err = err
-			case <-c.okCh:
-				c.err = nil
-			case <-sigterm:
-				return
-			}
-		}
-	}()
+	go c.Controller.Run(c.updCh)
 }
 
 func (c *StackController) TriggerUpdateStack() {

@@ -74,7 +74,7 @@ func (c *Config) FileName() string {
 	return fmt.Sprintf("%s-%s.yaml", c.Project, c.Stack)
 }
 
-func readConfig(fpath string) (*Config, error) {
+func ReadConfig(fpath string) (*Config, error) {
 	b, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return nil, err
@@ -84,6 +84,14 @@ func readConfig(fpath string) (*Config, error) {
 		return nil, err
 	}
 	return &c, nil
+}
+
+func WriteNewConfig(fpath string, c *Config) error {
+	return writeConfig(fpath, c, false)
+}
+
+func WriteConfig(fpath string, c *Config) error {
+	return writeConfig(fpath, c, true)
 }
 
 func writeConfig(fpath string, c *Config, overwrite bool) error {
@@ -118,15 +126,15 @@ func writeConfig(fpath string, c *Config, overwrite bool) error {
 func (c *Config) readKeypair(fpath string) error {
 	publicKeyPath := path.Join(fpath, "id_rsa.pub")
 	privateKeyPath := path.Join(fpath, "id_rsa")
-	if kb, err := ioutil.ReadFile(publicKeyPath); err != nil {
+	if b, err := ioutil.ReadFile(publicKeyPath); err != nil {
 		return err
 	} else {
-		c.Props.Keypair.publicKey = string(kb)
+		c.Props.Keypair.publicKey = string(b)
 	}
-	if kb, err := ioutil.ReadFile(privateKeyPath); err != nil {
+	if b, err := ioutil.ReadFile(privateKeyPath); err != nil {
 		return err
 	} else {
-		c.Props.Keypair.privateKey = "\n" + string(kb)
+		c.Props.Keypair.privateKey = "\n" + string(b)
 	}
 	return nil
 }

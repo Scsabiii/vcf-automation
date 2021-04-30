@@ -9,7 +9,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 		"pulumi==2.18.1" \
 		"pulumi-openstack==2.17.0" \
 		"paramiko>=2.7.1" \
-		"typing_extensions>=3.7.4"
+		"typing_extensions>=3.7.4" \
+		"jinja2"
 
 RUN apt update && \
 	apt install -yq --no-install-recommends \

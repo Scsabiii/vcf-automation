@@ -65,7 +65,7 @@ type Share struct {
 func InitEsxiStack(ctx context.Context, stackName, projectDir string) (*EsxiStack, error) {
 	s, err := auto.UpsertStackLocalSource(ctx, stackName, projectDir)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create or select stack: %v\n", err)
+		return nil, fmt.Errorf("failed to create or select stack: %v", err)
 	}
 	return &EsxiStack{Stack: s, state: &EsxiState{}}, nil
 }

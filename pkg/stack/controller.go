@@ -4,12 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/signal"
 	"path"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -21,31 +18,27 @@ type Controller struct {
 	ProjectPath    string
 	configured     bool
 	stack          Stack
+	err            error
 	mu             sync.Mutex
 }
 
-// NewController creates controller with given Config c, and writes the config to disk
-func NewController(ppath, cpath string, c *Config) (*Controller, error) {
+// NewController
+func NewController(prjPath, cfgPath string, c *Config) (*Controller, error) {
 	err := validateConfig(c)
 	if err != nil {
 		return nil, err
 	}
-	l := Controller{
-		ProjectPath:    ppath,
-		ConfigFilePath: path.Join(cpath, c.FileName()),
+	return &Controller{
+		ProjectPath:    prjPath,
+		ConfigFilePath: path.Join(cfgPath, c.FileName()),
 		Config:         c,
-	}
-	err = writeConfig(l.ConfigFilePath, c, false)
-	if err != nil {
-		return nil, err
-	}
-	return &l, nil
+	}, nil
 }
 
 // NewControllerFromConfigFile reads configuration file (fname) in the
 // configuration directory (cpath), and creates controller from it.
 func NewControllerFromConfigFile(prjpath, cfgfilepath string) (*Controller, error) {
-	c, err := readConfig(cfgfilepath)
+	c, err := ReadConfig(cfgfilepath)
 	if err != nil {
 		return nil, err
 	}
@@ -61,59 +54,54 @@ func NewControllerFromConfigFile(prjpath, cfgfilepath string) (*Controller, erro
 	return &l, nil
 }
 
-func (c *Controller) Run(updateCh <-chan bool, errCh chan error, ok chan bool) {
-	tickerDuration := 15 * time.Minute
-	ctx := context.Background()
-	ticker := time.NewTicker(tickerDuration)
+func (c *Controller) Run(updateCh <-chan bool) {
 	logger := log.WithFields(log.Fields{
 		"project": c.Project,
 		"stack":   c.Stack,
 	})
-
-	// stop controller loop on system signal
-	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, os.Interrupt, syscall.SIGTERM)
+	tickerDuration := 15 * time.Minute
+	ticker := time.NewTicker(tickerDuration)
+	defer ticker.Stop()
 
 	for {
 		func() {
-			var err error
+			ctx := context.Background()
 			if c.stack == nil {
 				logger.Info("initialize stack")
-				err = c.InitStack(ctx)
-				if err != nil {
-					logger.WithError(err).Error("initialize stack failed")
-					errCh <- err
+				c.err = c.InitStack(ctx)
+				if c.err != nil {
+					logger.WithError(c.err).Error("initialize stack failed")
 					return
 				}
 			}
 			if !c.configured {
 				logger.Info("configure stack")
-				err = c.ConfigureStack(ctx)
-				if err != nil {
-					logger.WithError(err).Error("configure stack failed")
-					errCh <- err
+				c.err = c.ConfigureStack(ctx)
+				if c.err != nil {
+					logger.WithError(c.err).Error("configure stack failed")
 					return
 				}
 				c.configured = true
 			}
 			logger.Info("refresh stack")
-			err = c.RefreshStack(ctx)
-			if err != nil {
-				logger.WithError(err).Error("refresh stack failed")
-				errCh <- err
+			c.err = c.RefreshStack(ctx)
+			if c.err != nil {
+				logger.WithError(c.err).Error("refresh stack failed")
 				return
 			}
 			logger.Info("update stack")
-			err = c.UpdateStack(ctx)
-			if err != nil {
-				logger.WithError(err).Error("update stack failed")
-				errCh <- err
+			c.err = c.UpdateStack(ctx)
+			if c.err != nil {
+				logger.WithError(c.err).Error("update stack failed")
 				return
 			}
-			ok <- true
+			c.err = nil
+		}()
+
+		if c.err == nil {
 			logger.Info("stack resources:")
 			c.PrintStackResources()
-		}()
+		}
 
 		select {
 		case <-updateCh:
@@ -123,13 +111,8 @@ func (c *Controller) Run(updateCh <-chan bool, errCh chan error, ok chan bool) {
 			c.configured = false
 			ticker.Reset(tickerDuration)
 		case <-ticker.C:
-		case sig := <-sigterm:
-			logger.Infof("stopping controller loop on signal %s", sig)
-			ticker.Stop()
-			return
 		}
 	}
-
 }
 
 // UpdateConfig updates Props.StackProps field of the controller's Config with
@@ -148,7 +131,7 @@ func (l *Controller) UpdateConfig(s *Config) error {
 	if err != nil {
 		return err
 	}
-	err = writeConfig(l.ConfigFilePath, nc, true)
+	err = WriteConfig(l.ConfigFilePath, nc)
 	if err != nil {
 		return err
 	}
@@ -257,4 +240,8 @@ func (c *Controller) UpdateStack(ctx context.Context) error {
 		printStackOutputs(res.Outputs)
 	}
 	return nil
+}
+
+func (c *Controller) GetError() error {
+	return c.err
 }
