@@ -22,7 +22,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pulumi/pulumi/sdk/v2/go/x/auto"
+	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
 type ManagementStack struct {

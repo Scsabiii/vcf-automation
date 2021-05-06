@@ -1,5 +1,6 @@
 .git
 bin
+__pycache__
 !bin/automation
 ccmaas/viewer
 docker
