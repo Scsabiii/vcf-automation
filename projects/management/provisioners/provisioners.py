@@ -41,21 +41,19 @@ class ConnectionArgs:
     host: pulumi.Input[str]
     port: Optional[pulumi.Input[int]]
     username: pulumi.Input[str]
-    private_key: pulumi.Input[str]
+    private_key_file: pulumi.Input[str]
 
-    def __init__(self, host, username, private_key, port=22):
+    def __init__(self, host, username, private_key_file, port=22):
         self.host = host
         self.port = port
         self.username = username
-        self.private_key = private_key
+        self.private_key_file = private_key_file
 
 
 def connect(conn: dict) -> paramiko.SSHClient:
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    # pkey = paramiko.RSAKey.from_private_key_file(filename=conn['private_key_file'])
-    fileIO = io.StringIO(conn["private_key"])
-    pkey = paramiko.RSAKey.from_private_key(fileIO)
+    pkey = paramiko.RSAKey.from_private_key_file(filename=conn["private_key_file"])
     # Retry the connection until the endpoint is available (up to 2 minutes).
     retries = 0
     while True:
@@ -66,7 +64,6 @@ def connect(conn: dict) -> paramiko.SSHClient:
                 username=conn["username"],
                 pkey=pkey,
             )
-            print("connection done")
             return ssh
         except (paramiko.SSHException, socket.error):
             if retries == 24:
@@ -94,6 +91,8 @@ class ProvisionerProvider(dynamic.ResourceProvider):
         # If anything changed in the inputs, replace the resource.
         diffs = []
         for key in olds:
+            if key == "conn":
+                continue
             if key not in news:
                 diffs.append(key)
             else:
@@ -105,6 +104,8 @@ class ProvisionerProvider(dynamic.ResourceProvider):
                 except TypeError:
                     diffs.append(key)
         for key in news:
+            if key == "conn":
+                continue
             if key not in olds:
                 diffs.append(key)
         return dynamic.DiffResult(
@@ -114,15 +115,20 @@ class ProvisionerProvider(dynamic.ResourceProvider):
 
 # CopyFileProvider implements the resource lifecycle for the CopyFile resource type below.
 class CopyFileProvider(ProvisionerProvider):
-    def on_create(self, inputs: Any) -> Any:
-        ssh = connect(inputs["conn"])
+    def on_create(self, props: Any) -> Any:
+        ssh = connect(props["conn"])
         scp = ssh.open_sftp()
         try:
-            scp.put(inputs["src"], inputs["dest"])
+            print(props)
+            print(props["mode"])
+            mode = int(props["mode"], base=8)
+            scp.put(props["src"], props["dest"])
+            scp.chmod(props["dest"], mode)
+            print(props)
         finally:
             scp.close()
             ssh.close()
-        return inputs
+        return props
 
 
 # CopyFile is a provisioner step that can copy a file over an SSH connection.
@@ -130,10 +136,11 @@ class CopyFile(dynamic.Resource):
     def __init__(
         self,
         name: str,
-        host_id: str,
+        host_id: pulumi.Input[str],
         conn: pulumi.Input[ConnectionArgs],
         src: str,
         dest: str,
+        mode: str = "664",
         opts: Optional[pulumi.ResourceOptions] = None,
     ):
         super().__init__(
@@ -144,6 +151,7 @@ class CopyFile(dynamic.Resource):
                 "conn": conn,
                 "src": src,
                 "dest": dest,
+                "mode": mode,
                 "fileHash": sha256sum(src),
             },
             opts,
@@ -169,8 +177,8 @@ class CopyFileFromString(dynamic.Resource):
     def __init__(
         self,
         name: str,
-        host_id: str,
-        conn: ConnectionArgs,
+        host_id: pulumi.Input[str],
+        conn: pulumi.Input[ConnectionArgs],
         from_str: str,
         dest: str,
         opts: pulumi.ResourceOptions = None,
@@ -219,15 +227,11 @@ class RemoteExec(dynamic.Resource):
     def __init__(
         self,
         name: str,
-        host_id: str,
-        conn: ConnectionArgs,
-        commands: list,
+        host_id: pulumi.Input[str],
+        conn: pulumi.Input[ConnectionArgs],
+        commands: pulumi.Input[list],
         opts: Optional[pulumi.ResourceOptions] = None,
     ):
-        self.conn = conn
-        """conn contains information on how to connect to the destination, in addition to dependency information."""
-        self.commands = commands
-        """The commands to execute. Exactly one of 'command' and 'commands' is required."""
         super().__init__(
             RemoteExecProvider(),
             name,

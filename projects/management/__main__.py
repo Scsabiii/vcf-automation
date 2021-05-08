@@ -11,14 +11,20 @@ from pulumi.output import Output
 from pulumi.resource import ResourceOptions
 from pulumi_openstack import Provider, provider
 from pulumi_openstack import compute, networking, dns
-import sys
 
-from provisioners import ConnectionArgs, CopyFile, CopyFileFromString, RemoteExec
+from provisioners import (
+    ConnectionArgs,
+    CopyFile,
+    CopyFileFromString,
+    RemoteExec,
+)
 
 # read config
 config = pulumi.Config()
-public_key = config.require("publicKey")
-private_key = config.require_secret("privateKey")
+# public_key = config.require("publicKey")
+# private_key = config.require_secret("privateKey")
+public_key_file = "/pulumi/avocado/etc/.ssh/id_rsa.pub"
+private_key_file = "/pulumi/avocado/etc/.ssh/id_rsa"
 
 privateNetworkProps = json.loads(config.require("privateNetworks"))
 deploymentNetworkProps = json.loads(config.require("deploymentNetwork"))
