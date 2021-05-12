@@ -51,29 +51,32 @@ class ConnectionArgs:
 
 
 def connect(conn: dict) -> paramiko.SSHClient:
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client = paramiko.SSHClient()
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     pkey = paramiko.RSAKey.from_private_key_file(filename=conn["private_key_file"])
     # Retry the connection until the endpoint is available (up to 2 minutes).
     retries = 0
     while True:
         try:
-            ssh.connect(
+            client.connect(
                 hostname=conn["host"],
                 port=int(conn["port"]),
                 username=conn["username"],
                 pkey=pkey,
             )
-            return ssh
-        except (paramiko.SSHException, socket.error):
+            return client
+        except (paramiko.SSHException, socket.error) as e:
+            print("connect: retry " + str(retries))
             if retries == 24:
-                raise
+                print(
+                    "connection to {}:{} failed: {}".format(
+                        conn["host"], int(conn["port"]), e
+                    )
+                )
+                raise e
             time.sleep(5)
             retries = retries + 1
-            pass
-        except Exception as e:
-            print(e)
-            raise e
 
 
 class ProvisionerProvider(dynamic.ResourceProvider):
@@ -119,12 +122,9 @@ class CopyFileProvider(ProvisionerProvider):
         ssh = connect(props["conn"])
         scp = ssh.open_sftp()
         try:
-            print(props)
-            print(props["mode"])
             mode = int(props["mode"], base=8)
             scp.put(props["src"], props["dest"])
             scp.chmod(props["dest"], mode)
-            print(props)
         finally:
             scp.close()
             ssh.close()
@@ -207,17 +207,21 @@ class RunCommandResult(TypedDict):
 # RemoteExecProvider implements the resource lifecycle for the RemoteExec resource type below.
 class RemoteExecProvider(ProvisionerProvider):
     def on_create(self, inputs: Any) -> Any:
-        ssh = connect(inputs["conn"])
+        ssh_client = connect(inputs["conn"])
         try:
             for command in inputs["commands"]:
-                stdin, stdout, stderr = ssh.exec_command(command)
-                err = "".join(stderr.readlines())
-                if err != "":
+                stdin, stdout, stderr = ssh_client.exec_command(command)
+                if stdout.channel.recv_exit_status() != 0:
+                    err = "".join(stderr.readlines())
+                    if err == "":
+                        err = "".join(stdout.readlines())
                     raise Exception(
                         'remote execution "{}" failed: {}'.format(command, err)
                     )
+                else:
+                    print('ok')
         finally:
-            ssh.close()
+            ssh_client.close()
         return inputs
 
 

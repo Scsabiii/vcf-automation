@@ -14,6 +14,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 RUN apt update && \
 	apt install -yq --no-install-recommends \
+	iputils-ping \
+	iputils-arping \
+	iputils-tracepath \
+	traceroute \
+	jq \
 	vim-tiny && \
 	apt clean && \
 	rm -rf /var/lib/apt/lists/*
