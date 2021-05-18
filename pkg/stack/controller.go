@@ -68,30 +68,30 @@ func (c *Controller) Run(updateCh <-chan bool) {
 			ctx := context.Background()
 			if c.stack == nil {
 				logger.Info("initialize stack")
-				c.err = c.InitStack(ctx)
-				if c.err != nil {
+				if err := c.InitStack(ctx); err != nil {
+					c.err = err
 					logger.WithError(c.err).Error("initialize stack failed")
 					return
 				}
 			}
 			if !c.configured {
 				logger.Info("configure stack")
-				c.err = c.ConfigureStack(ctx)
-				if c.err != nil {
+				if err := c.ConfigureStack(ctx); err != nil {
+					c.err = err
 					logger.WithError(c.err).Error("configure stack failed")
 					return
 				}
 				c.configured = true
 			}
 			logger.Info("refresh stack")
-			c.err = c.RefreshStack(ctx)
-			if c.err != nil {
+			if err := c.RefreshStack(ctx); err != nil {
+				c.err = err
 				logger.WithError(c.err).Error("refresh stack failed")
 				return
 			}
 			logger.Info("update stack")
-			c.err = c.UpdateStack(ctx)
-			if c.err != nil {
+			if err := c.UpdateStack(ctx); err != nil {
+				c.err = err
 				logger.WithError(c.err).Error("update stack failed")
 				return
 			}

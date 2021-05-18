@@ -116,6 +116,12 @@ func (s *ManagementStack) Configure(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		return err
 	}
+	for _, n := range p.EsxiNodes {
+		err = validateIronicNodes(n.Name, n.ID)
+		if err != nil {
+			return err
+		}
+	}
 	if (p.ExternalNetwork != MgmtDomainExternalNetwork{}) {
 		if en, err := json.Marshal(p.ExternalNetwork); err != nil {
 			return err
