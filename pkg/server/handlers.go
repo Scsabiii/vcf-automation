@@ -23,10 +23,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/gorilla/mux"
 	"github.com/sapcc/avocado-automation/pkg/stack"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 func newStackHandler(w http.ResponseWriter, r *http.Request) {
@@ -132,4 +135,38 @@ func getControllerForRequest(r *http.Request) (*StackController, error) {
 	stack := vars["stack"]
 	fname := fmt.Sprintf("%s-%s.yaml", project, stack)
 	return manager.Get(fname)
+}
+
+func serveTemplate(w http.ResponseWriter, r *http.Request) {
+	td := viper.GetString("templates_dir")
+	// lp := filepath.Join(td, "layout.html")
+	fp := filepath.Join(td, filepath.Clean(r.URL.Path))
+
+	// Return a 404 if the template doesn't exist
+	info, err := os.Stat(fp)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.NotFound(w, r)
+			http.Error(w, "not found not found", http.StatusNotFound)
+			// http.Redirect(w, r, r.URL.Path, http.StatusNotFound)
+			return
+		}
+	}
+
+	// Return a 404 if the request is for a directory
+	if info.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
+
+}
+
+type pageHandler struct {
+	staticPath   string
+	templatePath string
+}
+
+func (h pageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header()
+	w.Write([]byte("ok"))
 }

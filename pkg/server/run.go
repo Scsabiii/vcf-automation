@@ -32,6 +32,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/sapcc/avocado-automation/pkg/stack"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -81,6 +82,16 @@ func Run(port int) {
 	r.HandleFunc("/update", updateStackHandler).Methods("POST")
 	r.HandleFunc("/{project}/{stack}/state", getStackState).Methods("GET")
 	r.HandleFunc("/{project}/{stack}/update", updateStack).Methods("POST")
+
+	// sd := "/static/"
+	// sdpath := viper.GetString("static_dir")
+	// r.PathPrefix(sd).Handler(http.StripPrefix(sd, http.FileServer(http.Dir(sdpath))))
+
+	h := pageHandler{
+		staticPath:   viper.GetString("static_path"),
+		templatePath: viper.GetString("template_path"),
+	}
+	r.Handle("/", h)
 
 	s := &http.Server{
 		Handler:      r,

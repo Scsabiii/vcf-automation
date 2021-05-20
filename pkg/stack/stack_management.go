@@ -38,14 +38,15 @@ type ManagementStackProps struct {
 	ExternalNetwork    MgmtDomainExternalNetwork   `yaml:"externalNetwork"`
 	ManagementNetwork  MgmtDomainMgmtNetwork       `yaml:"managementNetwork"`
 	DeploymentNetwork  MgmtDomainDeploymentNetwork `yaml:"deploymentNetwork"`
-	PrivateNetworks    []MgmtDomainPrivateNetwork  `yaml:"privateNetworks"`
-	EsxiNodes          []MgmtDomainEsxiNode        `yaml:"esxiNodes"`
+	HelperVM           HelperVM                    `yaml:"helperVM"`
+	DNSZoneName        string                      `yaml:"dnsZoneName"`
+	PublicRouter       string                      `yaml:"publicRouter"`
+	ReverseDNSZoneName string                      `yaml:"reverseDnsZoneName"`
 	EsxiServerImage    string                      `yaml:"esxiServerImange"`
 	EsxiServerFlavorID string                      `yaml:"esxiServerFlavorID"`
-	HelperVM           HelperVM                    `yaml:"helperVM"`
+	EsxiNodes          []MgmtDomainEsxiNode        `yaml:"esxiNodes"`
+	PrivateNetworks    []MgmtDomainPrivateNetwork  `yaml:"privateNetworks"`
 	ReservedIPs        []RerservedIP               `yaml:"reservedIPs"`
-	DNSZoneName        string                      `yaml:"dnsZoneName"`
-	ReverseDNSZoneName string                      `yaml:"reverseDnsZoneName"`
 }
 
 type MgmtDomainExternalNetwork struct {
@@ -64,6 +65,7 @@ type MgmtDomainMgmtNetwork struct {
 
 type MgmtDomainDeploymentNetwork struct {
 	NetworkName string `yaml:"networkName" json:"name,omitempty"`
+	SubnetName  string `yaml:"subnetName" json:"subnet_name,omitempty"`
 	CIDR        string `yaml:"cidr" json:"cidr,omitempty"`
 	Gateway     string `yaml:"gatewayIP" json:"gateway_ip,omitempty"`
 }
@@ -172,7 +174,7 @@ func (s *ManagementStack) Configure(ctx context.Context, cfg *Config) error {
 		}
 	}
 	if p.EsxiServerImage != "" {
-		s.SetConfig(ctx, "esxiServerImange", auto.ConfigValue{Value: p.EsxiServerImage})
+		s.SetConfig(ctx, "esxiServerImage", auto.ConfigValue{Value: p.EsxiServerImage})
 	}
 	if p.EsxiServerFlavorID != "" {
 		s.SetConfig(ctx, "esxiServerFlavorID", auto.ConfigValue{Value: p.EsxiServerFlavorID})
@@ -182,6 +184,9 @@ func (s *ManagementStack) Configure(ctx context.Context, cfg *Config) error {
 	}
 	if p.ReverseDNSZoneName != "" {
 		s.SetConfig(ctx, "reverseDnsZoneName", auto.ConfigValue{Value: p.ReverseDNSZoneName})
+	}
+	if p.PublicRouter != "" {
+		s.SetConfig(ctx, "publicRouter", configValue(p.PublicRouter))
 	}
 	return nil
 }

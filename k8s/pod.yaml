@@ -28,6 +28,10 @@ spec:
             secretKeyRef:
               name: ccmaas-pass
               key: os_username
+        - name: AUTOMATION_STATIC_PATH
+          value: /pulumi/avocado/static
+        - name: AUTOMATION_TEMPLATE_PATH
+          value: /pulumi/avocado/templates
       volumeMounts:
         - mountPath: /pulumi/avocado/etc
           subPath: etc

@@ -26,4 +26,6 @@ RUN apt update && \
 # COPY test/etc ${workdir}/etc
 COPY test/projects/management ${workdir}/projects/management
 COPY bin/automation /pulumi/bin/automation
+COPY static ${workdir}/static
+COPY templates ${workdir}/templates
 
