@@ -158,6 +158,9 @@ github.com/hashicorp/vault/sdk/helper/hclutil
 github.com/hashicorp/vault/sdk/helper/jsonutil
 github.com/hashicorp/vault/sdk/helper/parseutil
 github.com/hashicorp/vault/sdk/helper/strutil
+# github.com/imdario/mergo v0.3.12
+## explicit
+github.com/imdario/mergo
 # github.com/inconshreveable/mousetrap v1.0.0
 github.com/inconshreveable/mousetrap
 # github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99
@@ -371,8 +374,7 @@ gocloud.dev/secrets/driver
 gocloud.dev/secrets/gcpkms
 # gocloud.dev/secrets/hashivault v0.22.0
 gocloud.dev/secrets/hashivault
-# golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
-## explicit
+# golang.org/x/crypto v0.0.0-20201203163018-be400aefbc4c
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/cast5
 golang.org/x/crypto/chacha20
@@ -421,8 +423,7 @@ golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
-## explicit
+# golang.org/x/term v0.0.0-20201117132131-f5c789dd3221
 golang.org/x/term
 # golang.org/x/text v0.3.4
 golang.org/x/text/secure/bidirule

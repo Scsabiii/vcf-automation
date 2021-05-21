@@ -23,15 +23,16 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/imdario/mergo"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
-type EsxiStack struct {
+type Stack struct {
 	*auto.Stack
-	state *EsxiState
+	state StackState
 }
 
-type EsxiState struct {
+type StackState struct {
 	err              error
 	refreshError     error
 	NodeNetworkName  string
@@ -40,7 +41,7 @@ type EsxiState struct {
 	SecurityGroupID  string
 }
 
-type EsxiStackProps struct {
+type StackProps struct {
 	Prefix           string  `yaml:"resourcePrefix"`
 	NodeSubnet       string  `yaml:"nodeSubnet"`
 	StorageSubnet    string  `yaml:"storageSubnet"`
@@ -62,16 +63,20 @@ type Share struct {
 	Size int    `yaml:"size"`
 }
 
-func InitEsxiStack(ctx context.Context, stackName, projectDir string) (*EsxiStack, error) {
+func InitEsxiStack(ctx context.Context, stackName, projectDir string) (*Stack, error) {
 	s, err := auto.UpsertStackLocalSource(ctx, stackName, projectDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create or select stack: %v", err)
 	}
-	return &EsxiStack{Stack: &s, state: &EsxiState{}}, nil
+	return &Stack{&s, StackState{}}, nil
 }
 
 // Config Esxi Project specific properties
-func (s *EsxiStack) Configure(ctx context.Context, p *EsxiStackProps) error {
+func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
+	p := props[0]
+	for _, q := range props[1:] {
+		mergo.Merge(&p, q)
+	}
 	if p.NodeSubnet == "" {
 		return fmt.Errorf("Config.Props.Stack.NodeSubnet not set")
 	}
@@ -98,11 +103,11 @@ func (s *EsxiStack) Configure(ctx context.Context, p *EsxiStackProps) error {
 	return nil
 }
 
-func (s *EsxiStack) UpdateConfig(ctx context.Context, payload *EsxiStackProps) error {
+func (s *Stack) UpdateConfig(ctx context.Context, payload *StackProps) error {
 	return nil
 }
 
-func (s *EsxiStack) Refresh(ctx context.Context) error {
+func (s *Stack) Refresh(ctx context.Context) error {
 	_, err := s.Stack.Refresh(ctx)
 	if err != nil {
 		s.state.refreshError = err
@@ -112,7 +117,7 @@ func (s *EsxiStack) Refresh(ctx context.Context) error {
 	return nil
 }
 
-func (s *EsxiStack) Update(ctx context.Context) (auto.UpResult, error) {
+func (s *Stack) Update(ctx context.Context) (auto.UpResult, error) {
 	res, err := s.Stack.Up(ctx)
 	if err != nil {
 		s.state.err = err
@@ -121,7 +126,7 @@ func (s *EsxiStack) Update(ctx context.Context) (auto.UpResult, error) {
 	return res, nil
 }
 
-func (s *EsxiStack) Destroy(ctx context.Context) error {
+func (s *Stack) Destroy(ctx context.Context) error {
 	res, err := s.Stack.Destroy(ctx)
 	if err != nil {
 		s.state.err = err
@@ -131,15 +136,15 @@ func (s *EsxiStack) Destroy(ctx context.Context) error {
 	return nil
 }
 
-func (s *EsxiStack) GetState() interface{} {
+func (s *Stack) GetState() interface{} {
 	return s.state
 }
 
-func (s *EsxiStack) GetError() error {
+func (s *Stack) GetError() error {
 	return s.state.err
 }
 
-func (s *EsxiStack) GenYaml(ctx context.Context, p *EsxiStackProps) ([]byte, error) {
+func (s *Stack) GenYaml(ctx context.Context, p *StackProps) ([]byte, error) {
 	// outputs, err := s.Outputs(ctx)
 	// if err != nil {
 	// 	fmt.Printf("PrintYaml: %v\n", err)
@@ -180,7 +185,7 @@ func lookupOutput(outputs auto.OutputMap, key string) (string, error) {
 	return "", err
 }
 
-func (s *EsxiStack) SetState() {
+func (s *Stack) SetState() {
 	// for k, v := range res.Outputs {
 	// 	switch k {
 	// 	case "EsxiNetworkName":

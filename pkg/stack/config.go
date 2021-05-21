@@ -29,16 +29,17 @@ import (
 )
 
 const (
-	DeployEsxi       ProjectType = "esxi"
-	DeployExample    ProjectType = "example"
-	DeployManagement ProjectType = "management"
+	DeployEsxi    ProjectType = "esxi"
+	DeployExample ProjectType = "example"
+	DeployVCF     ProjectType = "management"
 )
 
 // Config is configuration of project/stack
 type Config struct {
-	Project ProjectType `json:"project" yaml:"project"`
-	Stack   string      `json:"stack" yaml:"stack"`
-	Props   Props       `json:"props" yaml:"props"`
+	Project   ProjectType `json:"project" yaml:"project"`
+	Stack     string      `json:"stack" yaml:"stack"`
+	Props     Props       `json:"props" yaml:"props"`
+	DependsOn []string    `json:"depends_on,omitempty" yaml:"dependsOn"`
 }
 
 // ProjectType is project type
@@ -49,6 +50,7 @@ type ProjectType string
 type Props struct {
 	OpenstackProps OpenstackProps `json:"openstack" yaml:"openstack"`
 	StackProps     StackProps     `json:"stack" yaml:"stack"`
+	MoreStackProps []StackProps
 	Keypair        Keypair
 }
 
@@ -75,14 +77,21 @@ func (c *Config) FileName() string {
 	return fmt.Sprintf("%s-%s.yaml", c.Project, c.Stack)
 }
 
-func ReadConfig(fpath string) (*Config, error) {
-	b, err := ioutil.ReadFile(fpath)
+func ReadConfig(configFile string) (*Config, error) {
+	b, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return nil, err
 	}
 	c := Config{}
 	if err = yaml.Unmarshal(b, &c); err != nil {
 		return nil, err
+	}
+	for _, d := range c.DependsOn {
+		dc, err := ReadConfig(path.Join(path.Dir(configFile), d))
+		if err != nil {
+			return nil, err
+		}
+		c.Props.MoreStackProps = append(c.Props.MoreStackProps, dc.Props.StackProps)
 	}
 	return &c, nil
 }
@@ -109,7 +118,7 @@ func writeConfig(fpath string, c *Config, overwrite bool) error {
 	// string
 	switch c.Project {
 	case DeployEsxi:
-		p := esxi.EsxiStackProps{}
+		p := esxi.StackProps{}
 		err := unmarshalStackProps(c.Props.StackProps, &p)
 		if err != nil {
 			return err
@@ -147,12 +156,12 @@ func MergeStackPropsToConfig(c *Config, s StackProps) (*Config, error) {
 	nc := *c
 	switch nc.Project {
 	case DeployEsxi:
-		p := esxi.EsxiStackProps{}
+		p := esxi.StackProps{}
 		err := unmarshalStackProps(c.Props.StackProps, &p)
 		if err != nil {
 			return nil, err
 		}
-		np := esxi.EsxiStackProps{}
+		np := esxi.StackProps{}
 		err = unmarshalStackProps(s, &np)
 		if err != nil {
 			return nil, err
@@ -182,6 +191,15 @@ func unmarshalStackProps(s StackProps, props interface{}) error {
 	return yaml.Unmarshal(b, props)
 }
 
+// deserialize StackProps slice
+func unmarshalStackPropList(s []StackProps, props interface{}) error {
+	b, err := yaml.Marshal(s)
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(b, props)
+}
+
 func validateConfig(c *Config) error {
 	if c.Project == "" {
 		return fmt.Errorf("validateConfig: project not set")
@@ -200,7 +218,7 @@ func isValidProject(p ProjectType) bool {
 		return true
 	} else if p == DeployExample {
 		return true
-	} else if p == DeployManagement {
+	} else if p == DeployVCF {
 		return true
 	}
 	return false

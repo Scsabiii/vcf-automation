@@ -19,8 +19,8 @@ type Controller struct {
 	*Config
 	ConfigFilePath string
 	ProjectPath    string
-	configured     bool
 	stack          Stack
+	configured     bool
 	err            error
 	mu             sync.Mutex
 }
@@ -40,8 +40,8 @@ func NewController(prjPath, cfgPath string, c *Config) (*Controller, error) {
 
 // NewControllerFromConfigFile reads configuration file (fname) in the
 // configuration directory (cpath), and creates controller from it.
-func NewControllerFromConfigFile(prjpath, cfgfilepath string) (*Controller, error) {
-	c, err := ReadConfig(cfgfilepath)
+func NewControllerFromConfigFile(projectDir, configFile string) (*Controller, error) {
+	c, err := ReadConfig(configFile)
 	if err != nil {
 		return nil, err
 	}
@@ -50,8 +50,8 @@ func NewControllerFromConfigFile(prjpath, cfgfilepath string) (*Controller, erro
 		return nil, err
 	}
 	l := Controller{
-		ProjectPath:    prjpath,
-		ConfigFilePath: cfgfilepath,
+		ProjectPath:    projectDir,
+		ConfigFilePath: configFile,
 		Config:         c,
 	}
 	return &l, nil
@@ -166,9 +166,9 @@ func (l *Controller) InitStack(ctx context.Context) error {
 			return err
 		}
 		l.stack = s
-	case DeployManagement:
+	case DeployVCF:
 		projectDir := filepath.Join(l.ProjectPath, "management")
-		s, err := vcf.InitManagementStack(ctx, l.Config.Stack, projectDir)
+		s, err := vcf.InitVCFStack(ctx, l.Stack, projectDir)
 		if err != nil {
 			return err
 		}
@@ -295,22 +295,24 @@ func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
 	switch ProjectType(cfg.Project) {
 	case DeployExample:
 	case DeployEsxi:
-		p := esxi.EsxiStackProps{}
-		err := unmarshalStackProps(cfg.Props.StackProps, &p)
+		stackProps := append([]StackProps{cfg.Props.StackProps}, cfg.Props.MoreStackProps...)
+		props := make([]esxi.StackProps, len(stackProps))
+		err := unmarshalStackProps(cfg.Props.StackProps, &props)
 		if err != nil {
 			return err
 		}
-		err = s.(*esxi.EsxiStack).Configure(ctx, &p)
+		err = s.(*esxi.Stack).Configure(ctx, props...)
 		if err != nil {
 			return err
 		}
-	case DeployManagement:
-		p := vcf.ManagementStackProps{}
-		err := unmarshalStackProps(cfg.Props.StackProps, &p)
+	case DeployVCF:
+		stackProps := append([]StackProps{cfg.Props.StackProps}, cfg.Props.MoreStackProps...)
+		props := make([]vcf.StackProps, len(stackProps))
+		err := unmarshalStackPropList(stackProps, &props)
 		if err != nil {
 			return err
 		}
-		err = s.(*vcf.ManagementStack).Configure(ctx, &p)
+		err = s.(*vcf.Stack).Configure(ctx, props...)
 		if err != nil {
 			return err
 		}
