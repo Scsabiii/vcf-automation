@@ -16,7 +16,7 @@
 *
 ******************************************************************************/
 
-package stack
+package esxi
 
 import (
 	"context"
@@ -27,7 +27,7 @@ import (
 )
 
 type EsxiStack struct {
-	auto.Stack
+	*auto.Stack
 	state *EsxiState
 }
 
@@ -67,21 +67,11 @@ func InitEsxiStack(ctx context.Context, stackName, projectDir string) (*EsxiStac
 	if err != nil {
 		return nil, fmt.Errorf("failed to create or select stack: %v", err)
 	}
-	return &EsxiStack{Stack: s, state: &EsxiState{}}, nil
+	return &EsxiStack{Stack: &s, state: &EsxiState{}}, nil
 }
 
-// Config stack
-func (s EsxiStack) Configure(ctx context.Context, cfg *Config) error {
-	configureOpenstack(ctx, s.Stack, cfg)
-
-	p := EsxiStackProps{}
-	err := GetStackPropsFromConfig(cfg, &p)
-	if err != nil {
-		return err
-	}
-	if p.Prefix == "" {
-		p.Prefix = cfg.Stack
-	}
+// Config Esxi Project specific properties
+func (s *EsxiStack) Configure(ctx context.Context, p *EsxiStackProps) error {
 	if p.NodeSubnet == "" {
 		return fmt.Errorf("Config.Props.Stack.NodeSubnet not set")
 	}
@@ -108,11 +98,11 @@ func (s EsxiStack) Configure(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-func (s EsxiStack) UpdateConfig(ctx context.Context, payload *EsxiStackProps) error {
+func (s *EsxiStack) UpdateConfig(ctx context.Context, payload *EsxiStackProps) error {
 	return nil
 }
 
-func (s EsxiStack) Refresh(ctx context.Context) error {
+func (s *EsxiStack) Refresh(ctx context.Context) error {
 	_, err := s.Stack.Refresh(ctx)
 	if err != nil {
 		s.state.refreshError = err
@@ -122,7 +112,7 @@ func (s EsxiStack) Refresh(ctx context.Context) error {
 	return nil
 }
 
-func (s EsxiStack) Update(ctx context.Context) (auto.UpResult, error) {
+func (s *EsxiStack) Update(ctx context.Context) (auto.UpResult, error) {
 	res, err := s.Stack.Up(ctx)
 	if err != nil {
 		s.state.err = err
@@ -131,7 +121,7 @@ func (s EsxiStack) Update(ctx context.Context) (auto.UpResult, error) {
 	return res, nil
 }
 
-func (s EsxiStack) Destroy(ctx context.Context) error {
+func (s *EsxiStack) Destroy(ctx context.Context) error {
 	res, err := s.Stack.Destroy(ctx)
 	if err != nil {
 		s.state.err = err
@@ -141,15 +131,15 @@ func (s EsxiStack) Destroy(ctx context.Context) error {
 	return nil
 }
 
-func (s EsxiStack) GetState() interface{} {
+func (s *EsxiStack) GetState() interface{} {
 	return s.state
 }
 
-func (s EsxiStack) GetError() error {
+func (s *EsxiStack) GetError() error {
 	return s.state.err
 }
 
-func (s EsxiStack) GenYaml(ctx context.Context, cfg *Config) ([]byte, error) {
+func (s *EsxiStack) GenYaml(ctx context.Context, p *EsxiStackProps) ([]byte, error) {
 	// outputs, err := s.Outputs(ctx)
 	// if err != nil {
 	// 	fmt.Printf("PrintYaml: %v\n", err)
@@ -190,7 +180,7 @@ func lookupOutput(outputs auto.OutputMap, key string) (string, error) {
 	return "", err
 }
 
-func (s EsxiStack) SetState() {
+func (s *EsxiStack) SetState() {
 	// for k, v := range res.Outputs {
 	// 	switch k {
 	// 	case "EsxiNetworkName":

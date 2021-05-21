@@ -24,6 +24,7 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/sapcc/avocado-automation/pkg/stack/esxi"
 	"gopkg.in/yaml.v2"
 )
 
@@ -108,7 +109,7 @@ func writeConfig(fpath string, c *Config, overwrite bool) error {
 	// string
 	switch c.Project {
 	case DeployEsxi:
-		p := EsxiStackProps{}
+		p := esxi.EsxiStackProps{}
 		err := unmarshalStackProps(c.Props.StackProps, &p)
 		if err != nil {
 			return err
@@ -146,12 +147,12 @@ func MergeStackPropsToConfig(c *Config, s StackProps) (*Config, error) {
 	nc := *c
 	switch nc.Project {
 	case DeployEsxi:
-		p := EsxiStackProps{}
+		p := esxi.EsxiStackProps{}
 		err := unmarshalStackProps(c.Props.StackProps, &p)
 		if err != nil {
 			return nil, err
 		}
-		np := EsxiStackProps{}
+		np := esxi.EsxiStackProps{}
 		err = unmarshalStackProps(s, &np)
 		if err != nil {
 			return nil, err
@@ -169,9 +170,8 @@ func MergeStackPropsToConfig(c *Config, s StackProps) (*Config, error) {
 	return &nc, nil
 }
 
-// unmarshalStackProps deserializes the StackProps s into props, whose actual
-// type is assigned before calling this function.
-// E.g.,
+// Function unmarshalStackProps() deserializes the StackProps (s) into struct
+// (props), according to the actual type of (props). E.g.,
 //		p := EsxiStackProps{}
 //      unmarshalStackProps(s, p)
 func unmarshalStackProps(s StackProps, props interface{}) error {
@@ -180,10 +180,6 @@ func unmarshalStackProps(s StackProps, props interface{}) error {
 		return err
 	}
 	return yaml.Unmarshal(b, props)
-}
-
-func GetStackPropsFromConfig(cfg *Config, props interface{}) error {
-	return unmarshalStackProps(cfg.Props.StackProps, props)
 }
 
 func validateConfig(c *Config) error {

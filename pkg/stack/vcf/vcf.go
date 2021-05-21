@@ -16,7 +16,7 @@
 *
 ******************************************************************************/
 
-package stack
+package vcf
 
 import (
 	"context"
@@ -27,10 +27,10 @@ import (
 
 type ManagementStack struct {
 	auto.Stack
-	state ManagementStackState
+	state StackState
 }
 
-type ManagementStackState struct {
+type StackState struct {
 	err error
 }
 
@@ -101,29 +101,16 @@ func InitManagementStack(ctx context.Context, stackName, projectDir string) (*Ma
 	if err != nil {
 		return nil, err
 	}
-	return &ManagementStack{s, ManagementStackState{}}, nil
+	return &ManagementStack{s, StackState{}}, nil
 }
 
-func (s *ManagementStack) Configure(ctx context.Context, cfg *Config) error {
-	err := configureKeypair(ctx, s.Stack, cfg)
-	if err != nil {
-		return err
-	}
-	err = configureOpenstack(ctx, s.Stack, cfg)
-	if err != nil {
-		return err
-	}
-	p := ManagementStackProps{}
-	err = GetStackPropsFromConfig(cfg, &p)
-	if err != nil {
-		return err
-	}
-	for _, n := range p.EsxiNodes {
-		err = validateIronicNodes(n.Name, n.ID)
-		if err != nil {
-			return err
-		}
-	}
+func (s *ManagementStack) Configure(ctx context.Context, p *ManagementStackProps) error {
+	// for _, n := range p.EsxiNodes {
+	// 	err = validateIronicNodes(n.Name, n.ID)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 	if (p.ExternalNetwork != MgmtDomainExternalNetwork{}) {
 		if en, err := json.Marshal(p.ExternalNetwork); err != nil {
 			return err
@@ -186,14 +173,14 @@ func (s *ManagementStack) Configure(ctx context.Context, cfg *Config) error {
 		s.SetConfig(ctx, "reverseDnsZoneName", auto.ConfigValue{Value: p.ReverseDNSZoneName})
 	}
 	if p.PublicRouter != "" {
-		s.SetConfig(ctx, "publicRouter", configValue(p.PublicRouter))
+		s.SetConfig(ctx, "publicRouter", auto.ConfigValue{Value: p.PublicRouter})
 	}
 	return nil
 }
 
-func (s *ManagementStack) GenYaml(ctx context.Context, cfg *Config) ([]byte, error) {
-	return nil, ErrNotImplemented
-}
+// func (s *ManagementStack) GenYaml(ctx context.Context, cfg *Config) ([]byte, error) {
+// 	return nil, ErrNotImplemented
+// }
 
 func (s *ManagementStack) Refresh(ctx context.Context) error {
 	_, err := s.Stack.Refresh(ctx)

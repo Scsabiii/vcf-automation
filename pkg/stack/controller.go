@@ -2,14 +2,17 @@ package stack
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/auto"
+	"github.com/sapcc/avocado-automation/pkg/stack/esxi"
+	"github.com/sapcc/avocado-automation/pkg/stack/vcf"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 type Controller struct {
@@ -158,14 +161,14 @@ func (l *Controller) InitStack(ctx context.Context) error {
 	case DeployEsxi:
 		projectDir := filepath.Join(l.ProjectPath, "esxi")
 		stackName := l.Stack
-		s, err := InitEsxiStack(ctx, stackName, projectDir)
+		s, err := esxi.InitEsxiStack(ctx, stackName, projectDir)
 		if err != nil {
 			return err
 		}
 		l.stack = s
 	case DeployManagement:
 		projectDir := filepath.Join(l.ProjectPath, "management")
-		s, err := InitManagementStack(ctx, l.Config.Stack, projectDir)
+		s, err := vcf.InitManagementStack(ctx, l.Config.Stack, projectDir)
 		if err != nil {
 			return err
 		}
@@ -178,40 +181,32 @@ func (l *Controller) InitStack(ctx context.Context) error {
 	return nil
 }
 
-// ConfigureStack applies c.Config to the stack's configuration file, by
-// calling stack's Configure() function.
+// ConfigureStack configure the stack with openstack properties (user, domain,
+// project and etc.), ssh key pair and stack specific properties.
 //
-// Note: The stack configuration file is a yaml file located in the project
-// directory, with name Pulumi.{stack_name}.yaml. Controller updates the file
-// in each loop to make sure it is always consistent with the controller's
-// Config.
-//
-// Note: SSH key pair files (id_rsa and id_rsa.pub) are in the .ssh/
-// subdirectory of the directory where config file locates. If the config file
-// path is /foo/bar/config.yaml, the ssh key files are /foo/bar/.ssh/id_rsa and
-// /foo/bar/.ssh/id_rsa.pub.  The stack's Configure() function should return
-// ErrKeypairNotSet if the key pair is not read yet (see inline comment below).
+// NOTE All files in <ConfigFilePath> are persistent. Therefore, the SSH key
+// pair files are saved in directory <ConfigFilePath>/.ssh.
 func (c *Controller) ConfigureStack(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.stack == nil {
 		return fmt.Errorf("stack uninitialized")
 	}
-	if err := c.stack.Configure(ctx, c.Config); err != nil {
-		// Read the keypair from disk and run stack's Configure() function
-		// again, if the keypair is not read yet.
-		if errors.Is(err, ErrKeypairNotSet) {
-			err = c.readKeypair(path.Join(path.Dir(c.ConfigFilePath), ".ssh"))
-			if err != nil {
-				return err
-			}
-			err = c.stack.Configure(ctx, c.Config)
-			if err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
+	err := configureOpenstackProps(ctx, c.stack, c.Config.Props.OpenstackProps)
+	if err != nil {
+		return err
+	}
+	err = c.readKeypair(path.Join(path.Dir(c.ConfigFilePath), ".ssh"))
+	if err != nil {
+		return err
+	}
+	err = configureKeypair(ctx, c.stack, c.Config.Props.Keypair)
+	if err != nil {
+		return err
+	}
+	err = configureStackProps(ctx, c.stack, c.Config)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -244,4 +239,81 @@ func (c *Controller) UpdateStack(ctx context.Context) error {
 
 func (c *Controller) GetError() error {
 	return c.err
+}
+
+// config openstack
+func configureOpenstackProps(ctx context.Context, s Stack, p OpenstackProps) error {
+	if p.Region == "" {
+		return fmt.Errorf("Config.Props.Openstack.Region not set")
+	}
+	if p.Domain == "" {
+		return fmt.Errorf("Config.Props.Openstack.Domain not set")
+	}
+	if p.Tenant == "" {
+		return fmt.Errorf("Config.Props.Openstack.Tenant not set")
+	}
+	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", p.Region)
+	osUsername := viper.GetString("os_username")
+	if osUsername == "" {
+		return fmt.Errorf("env variable CCMAAS_OS_USERNAME not configured")
+	}
+	osPassword := viper.GetString("os_password")
+	if osPassword == "" {
+		return fmt.Errorf("env variable CCMAAS_OS_PASSWORD not configured")
+	}
+	c := auto.ConfigMap{
+		"openstack:authUrl":           configValue(osAuthURL),
+		"openstack:region":            configValue(p.Region),
+		"openstack:projectDomainName": configValue(p.Domain),
+		"openstack:tenantName":        configValue(p.Tenant),
+		"openstack:userDomainName":    configValue(p.Domain),
+		"openstack:userName":          configValue(osUsername),
+		"openstack:insecure":          configValue("true"),
+		"openstack:password":          configSecret(osPassword),
+	}
+	return s.SetAllConfig(ctx, c)
+}
+
+// config key pair
+func configureKeypair(ctx context.Context, s Stack, kp Keypair) error {
+	if kp.publicKey == "" || kp.privateKey == "" {
+		return ErrKeypairNotSet
+	}
+	err := s.SetConfig(ctx, "publicKey", configValue(kp.publicKey))
+	if err != nil {
+		return err
+	}
+	err = s.SetConfig(ctx, "privateKey", configSecret(kp.privateKey))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// configure stack props
+func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
+	switch ProjectType(cfg.Project) {
+	case DeployExample:
+	case DeployEsxi:
+		p := esxi.EsxiStackProps{}
+		err := unmarshalStackProps(cfg.Props.StackProps, &p)
+		if err != nil {
+			return err
+		}
+		err = s.(*esxi.EsxiStack).Configure(ctx, &p)
+		if err != nil {
+			return err
+		}
+	case DeployManagement:
+		p := vcf.ManagementStackProps{}
+		err := unmarshalStackProps(cfg.Props.StackProps, &p)
+		if err != nil {
+			return err
+		}
+		err = s.(*vcf.ManagementStack).Configure(ctx, &p)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

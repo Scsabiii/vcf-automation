@@ -26,15 +26,15 @@ import (
 
 type Stack interface {
 	Workspace() auto.Workspace
-	Configure(context.Context, *Config) error
-	GenYaml(context.Context, *Config) ([]byte, error)
-
 	Refresh(context.Context) error
 	Update(context.Context) (auto.UpResult, error)
-	// Destroy(context.Context) error
 	GetState() interface{}
 	GetError() error
+	SetConfig(context.Context, string, auto.ConfigValue) error
+	SetAllConfig(context.Context, auto.ConfigMap) error
 
+	// GenYaml(context.Context, *Config) ([]byte, error)
+	// Destroy(context.Context) error
 	// GetState()
 
 	// Outputs(context.Context) (auto.OutputMap, error)

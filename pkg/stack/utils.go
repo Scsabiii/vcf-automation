@@ -19,7 +19,6 @@
 package stack
 
 import (
-	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -30,7 +29,6 @@ import (
 	pulumistack "github.com/pulumi/pulumi/pkg/v3/resource/stack"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
-	"github.com/spf13/viper"
 )
 
 type Resource struct {
@@ -135,56 +133,6 @@ func (c *Controller) PrintStackResources() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	printStackResources(c.Stack)
-}
-
-// config openstack
-func configureOpenstack(ctx context.Context, s auto.Stack, cfg *Config) error {
-	o := cfg.Props.OpenstackProps
-	if o.Region == "" {
-		return fmt.Errorf("Config.Props.Openstack.Region not set")
-	}
-	if o.Domain == "" {
-		return fmt.Errorf("Config.Props.Openstack.Domain not set")
-	}
-	if o.Tenant == "" {
-		return fmt.Errorf("Config.Props.Openstack.Tenant not set")
-	}
-	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", o.Region)
-	osUsername := viper.GetString("os_username")
-	if osUsername == "" {
-		return fmt.Errorf("env variable CCMAAS_OS_USERNAME not configured")
-	}
-	osPassword := viper.GetString("os_password")
-	if osPassword == "" {
-		return fmt.Errorf("env variable CCMAAS_OS_PASSWORD not configured")
-	}
-	c := auto.ConfigMap{
-		"openstack:authUrl":           configValue(osAuthURL),
-		"openstack:region":            configValue(o.Region),
-		"openstack:projectDomainName": configValue(o.Domain),
-		"openstack:tenantName":        configValue(o.Tenant),
-		"openstack:userDomainName":    configValue(o.Domain),
-		"openstack:userName":          configValue(osUsername),
-		"openstack:insecure":          configValue("true"),
-		"openstack:password":          configSecret(osPassword),
-	}
-	return s.SetAllConfig(ctx, c)
-}
-
-// config key pair
-func configureKeypair(ctx context.Context, s auto.Stack, cfg *Config) error {
-	if cfg.Props.Keypair.publicKey == "" || cfg.Props.Keypair.privateKey == "" {
-		return ErrKeypairNotSet
-	}
-	err := s.SetConfig(ctx, "publicKey", configValue(cfg.Props.Keypair.publicKey))
-	if err != nil {
-		return err
-	}
-	err = s.SetConfig(ctx, "privateKey", configSecret(cfg.Props.Keypair.privateKey))
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func configValue(v string) auto.ConfigValue {
