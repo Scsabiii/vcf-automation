@@ -1,0 +1,268 @@
+{
+  "skipEsxThumbprintValidation": true,
+  "managementPoolName": "sddc-a-np01",
+  "sddcManagerSpec": {
+    "secondUserCredentials": {
+      "username": "vcf",
+      "password": ""
+    },
+    "ipAddress": "10.237.209.85",
+    "netmask": "255.255.255.128",
+    "hostname": "sddc-a-0",
+    "rootUserCredentials": {
+      "username": "root",
+      "password": ""
+    },
+    "restApiCredentials": {
+      "username": "admin",
+      "password": ""
+    },
+    "localUserPassword": "",
+    "vcenterId": "vcenter-1"
+  },
+  "sddcId": "qa-vcf01",
+  "esxLicense": "LJ6A2-8TK8K-N8CGT-0L3A4-38MQ4",
+  "taskName": "workflowconfig/workflowspec-ems.json",
+  "ceipEnabled": false,
+  "ntpServers": ["147.204.9.202", "147.204.9.203"],
+  "dnsSpec": {
+    "secondaryNameserver": "147.204.9.201",
+    "subdomain": "vcf01.qa-de-1.cloud.sap",
+    "domain": "vcf01.qa-de-1.cloud.sap",
+    "nameserver": "147.204.9.200"
+  },
+  "networkSpecs": [
+    {
+      "networkType": "MANAGEMENT",
+      "subnet": "10.237.209.0/25",
+      "gateway": "10.237.209.1",
+      "vlanId": "1007",
+      "mtu": "8950",
+      "portGroupKey": "vc-a-mgmt-vds01-pg-mgmt",
+      "standbyUplinks": [],
+      "activeUplinks": ["uplink1", "uplink2"]
+    },
+    {
+      "networkType": "VMOTION",
+      "subnet": "10.180.0.0/24",
+      "gateway": "10.180.0.1",
+      "vlanId": "1000",
+      "mtu": "8950",
+      "portGroupKey": "vc-a-mgmt-vds01-pg-vmotion",
+      "association": "vc-a-mgmt-dc01",
+      "includeIpAddressRanges": [
+        { "endIpAddress": "10.180.0.132", "startIpAddress": "10.180.0.101" }
+      ],
+      "standbyUplinks": [],
+      "activeUplinks": ["uplink1", "uplink2"]
+    },
+    {
+      "networkType": "VSAN",
+      "subnet": "10.180.4.0/24",
+      "gateway": "10.180.4.1",
+      "vlanId": "1004",
+      "mtu": "8950",
+      "portGroupKey": "vc-a-mgmt-vds01-pg-vsan",
+      "includeIpAddressRanges": [
+        { "endIpAddress": "10.180.4.132", "startIpAddress": "10.180.4.101" }
+      ],
+      "standbyUplinks": [],
+      "activeUplinks": ["uplink1", "uplink2"]
+    }
+  ],
+  "nsxtSpec": {
+    "nsxtManagerSize": "medium",
+    "nsxtManagers": [
+      {
+        "hostname": "vc-a-mgmt-nsx01a",
+        "ip": "10.237.209.81"
+      },
+      {
+        "hostname": "vc-a-mgmt-nsx01b",
+        "ip": "10.237.209.82"
+      },
+      {
+        "hostname": "vc-a-mgmt-nsx01c",
+        "ip": "10.237.209.83"
+      }
+    ],
+    "rootNsxtManagerPassword": "",
+    "nsxtAdminPassword": "",
+    "nsxtAuditPassword": "",
+    "rootLoginEnabledForNsxtManager": "true",
+    "sshEnabledForNsxtManager": "true",
+    "overLayTransportZone": {
+      "zoneName": "qa-vcf01-tz-overlay01",
+      "networkName": "netName-overlay"
+    },
+    "vlanTransportZone": {
+      "zoneName": "qa-vcf01-tz-vlan01",
+      "networkName": "netName-vlan"
+    },
+    "vip": "10.237.209.80",
+    "vipFqdn": "vc-a-mgmt-nsx01",
+    "nsxtLicense": "65296-0N144-98RDT-081A2-A99M5",
+    "transportVlanId": 1002,
+    "ipAddressPoolSpec": {
+      "name": "vc-a-mgmt-vds01-pg-tep01",
+      "description": "ESXi Host Overlay TEP IP Pool",
+      "subnets": [
+        {
+          "ipAddressPoolRanges": [
+            {
+              "start": "10.180.2.101",
+              "end": "10.180.2.164"
+            }
+          ],
+          "cidr": "10.180.2.0/24",
+          "gateway": "10.180.2.1"
+        }
+      ]
+    }
+  },
+  "vsanSpec": {
+    "vsanName": "vsan-1",
+    "vsanDedup": "false",
+    "datastoreName": "vc-a-0-cl01-ds-vsan01"
+  },
+  "dvSwitchVersion": "7.0.0",
+  "dvsSpecs": [
+    {
+      "dvsName": "vc-a-cl01-vds01",
+      "vcenterId": "vcenter-1",
+      "vmnics": ["vmnic0", "vmnic2"],
+      "mtu": 8950,
+      "networks": ["MANAGEMENT", "VMOTION", "VSAN"],
+      "niocSpecs": [
+        {
+          "trafficType": "VSAN",
+          "value": "HIGH"
+        },
+        {
+          "trafficType": "VMOTION",
+          "value": "LOW"
+        },
+        {
+          "trafficType": "VDP",
+          "value": "LOW"
+        },
+        {
+          "trafficType": "VIRTUALMACHINE",
+          "value": "HIGH"
+        },
+        {
+          "trafficType": "MANAGEMENT",
+          "value": "NORMAL"
+        },
+        {
+          "trafficType": "NFS",
+          "value": "LOW"
+        },
+        {
+          "trafficType": "HBR",
+          "value": "LOW"
+        },
+        {
+          "trafficType": "FAULTTOLERANCE",
+          "value": "LOW"
+        },
+        {
+          "trafficType": "ISCSI",
+          "value": "LOW"
+        }
+      ],
+      "isUsedByNsxt": true
+    }
+  ],
+  "clusterSpec": {
+    "clusterName": "vc-a-mgmt-cl01",
+    "vcenterName": "vcenter-1",
+    "clusterEvcMode": "",
+    "vmFolders": {
+      "MANAGEMENT": "qa-vcf01-fd-mgmt",
+      "NETWORKING": "qa-vcf01-fd-nsx",
+      "EDGENODES": "qa-vcf01-fd-edge"
+    }
+  },
+  "pscSpecs": [
+    {
+      "pscId": "psc-1",
+      "vcenterId": "vcenter-1",
+      "adminUserSsoPassword": "",
+      "pscSsoSpec": {
+        "ssoDomain": "vsphere.local"
+      }
+    }
+  ],
+  "vcenterSpec": {
+    "vcenterIp": "10.237.209.84",
+    "vcenterHostname": "vc-a-mgmt-01",
+    "vcenterId": "vcenter-1",
+    "vmSize": "small",
+    "storageSize": "",
+    "rootVcenterPassword": ""
+  },
+  "hostSpecs": [
+    {
+      "association": "vc-a-mgmt-dc01",
+      "ipAddressPrivate": {
+        "ipAddress": "10.237.209.9",
+        "cidr": "10.237.209.0/25",
+        "gateway": "10.237.209.1"
+      },
+      "hostname": "esxi-node016-ap001",
+      "credentials": {
+        "username": "root",
+        "password": ""
+      },
+      "vSwitch": "vSwitch0",
+      "serverId": "host-1"
+    },
+    {
+      "association": "vc-a-mgmt-dc01",
+      "ipAddressPrivate": {
+        "ipAddress": "10.237.209.19",
+        "cidr": "10.237.209.0/25",
+        "gateway": "10.237.209.1"
+      },
+      "hostname": "esxi-node017-ap001",
+      "credentials": {
+        "username": "root",
+        "password": ""
+      },
+      "vSwitch": "vSwitch0",
+      "serverId": "host-2"
+    },
+    {
+      "association": "vc-a-mgmt-dc01",
+      "ipAddressPrivate": {
+        "ipAddress": "10.237.209.16",
+        "cidr": "10.237.209.0/25",
+        "gateway": "10.237.209.1"
+      },
+      "hostname": "esxi-node018-ap001",
+      "credentials": {
+        "username": "root",
+        "password": ""
+      },
+      "vSwitch": "vSwitch0",
+      "serverId": "host-3"
+    },
+    {
+      "association": "vc-a-mgmt-dc01",
+      "ipAddressPrivate": {
+        "ipAddress": "10.237.209.27",
+        "cidr": "10.237.209.0/25",
+        "gateway": "10.237.209.1"
+      },
+      "hostname": "esxi-node019-ap001",
+      "credentials": {
+        "username": "root",
+        "password": ""
+      },
+      "vSwitch": "vSwitch0",
+      "serverId": "host-4"
+    }
+  ],
+  "excludedComponents": ["NSX-V", "AVN", "EBGP"]
+}
