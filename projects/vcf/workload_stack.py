@@ -1,9 +1,12 @@
 import json
+
 import pulumi
 from pulumi.invoke import InvokeOptions
+from pulumi.output import Output
 from pulumi.resource import ResourceOptions
-from pulumi_openstack import compute, dns, networking, Provider
+from pulumi_openstack import Provider, compute, dns, networking
 
+from provisioners import ConnectionArgs, RemoteExec
 from shared_stack import VCFStack, resources_cache
 
 
@@ -205,3 +208,83 @@ class WorkloadStack(VCFStack):
                 ],
                 opts=ResourceOptions(depends_on=[instance]),
             )
+
+            self._configure_esxi_node(node_name, instance, subport_management)
+
+    def _configure_esxi_node(self, node_name, instance, mgmt_port):
+        conn_args = ConnectionArgs(
+            host=self.props.helper_vm["ip"],
+            username="ccloud",
+            private_key_file=self.props.private_key_file,
+        )
+        # set password
+        command_set_passwd = instance.access_ip_v4.apply(
+            lambda args: (
+                "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "
+                "-i /home/ccloud/esxi_rsa root@{} 'echo VMware1!VMware1! | passwd --stdin root'"
+            ).format(args)
+        )
+        # config node
+        command_config = Output.all(
+            instance.access_ip_v4, mgmt_port.all_fixed_ips
+        ).apply(
+            lambda args: "pwsh /home/ccloud/config.sh -LocalIP {} -IP {} -Gateway {} -Netmask {}".format(
+                args[0],
+                args[1][0],
+                self.props.mgmt_network["subnet_gateway"],
+                self.props.mgmt_network["subnet_mask"],
+            )
+        )
+        # remove vmk0
+        command_remove_vmk0 = mgmt_port.all_fixed_ips.apply(
+            lambda args: "pwsh /home/ccloud/remove-vmk0.sh -HostIP {}".format(args[0])
+        )
+        # generate certificates after setting the domain name
+        command_gen_cert = mgmt_port.all_fixed_ips.apply(
+            lambda args: (
+                "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "
+                "-i /home/ccloud/esxi_rsa root@{} '/sbin/generate-certificates'"
+            ).format(args[0])
+        )
+        # restart hostd
+        command_restart_hostd = mgmt_port.all_fixed_ips.apply(
+            lambda args: (
+                "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "
+                "-i /home/ccloud/esxi_rsa root@{} '/etc/init.d/hostd restart'"
+            ).format(args[0])
+        )
+        # restart vpxa
+        command_restart_vpxa = mgmt_port.all_fixed_ips.apply(
+            lambda args: (
+                "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "
+                "-i /home/ccloud/esxi_rsa root@{} '/etc/init.d/vpxa restart'"
+            ).format(args[0])
+        )
+
+        step_1 = RemoteExec(
+            "configure-" + node_name + "-step-1",
+            host_id=instance.id,
+            conn=conn_args,
+            commands=[command_set_passwd],
+        )
+        step_2 = RemoteExec(
+            "configure-" + node_name + "-step-2",
+            host_id=instance.id,
+            conn=conn_args,
+            commands=[command_config],
+            opts=ResourceOptions(depends_on=[step_1]),
+        )
+        step_3 = RemoteExec(
+            "configure-" + node_name + "-step-3",
+            host_id=instance.id,
+            conn=conn_args,
+            commands=[command_gen_cert, command_restart_hostd, command_restart_vpxa],
+            opts=ResourceOptions(depends_on=[step_2]),
+        )
+        step_4 = RemoteExec(
+            "configure-" + node_name + "-step-4",
+            host_id=instance.id,
+            conn=conn_args,
+            commands=[command_remove_vmk0],
+            opts=ResourceOptions(depends_on=[step_3]),
+        )

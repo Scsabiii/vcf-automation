@@ -66,8 +66,7 @@ def connect(conn: dict) -> paramiko.SSHClient:
                 pkey=pkey,
             )
             return client
-        except (paramiko.SSHException, socket.error) as e:
-            print("connect: retry " + str(retries))
+        except Exception as e:
             if retries == 24:
                 print(
                     "connection to {}:{} failed: {}".format(
@@ -218,8 +217,6 @@ class RemoteExecProvider(ProvisionerProvider):
                     raise Exception(
                         'remote execution "{}" failed: {}'.format(command, err)
                     )
-                else:
-                    print('ok')
         finally:
             ssh_client.close()
         return inputs
