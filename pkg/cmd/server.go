@@ -21,6 +21,7 @@ package cmd
 import (
 	"github.com/sapcc/avocado-automation/pkg/server"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var port int
@@ -36,6 +37,8 @@ var serveCmd = &cobra.Command{
 }
 
 func init() {
+	viper.AutomaticEnv()
+	viper.SetEnvPrefix("automation")
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().IntVarP(&port, "port", "p", 8080, "server port")
 }

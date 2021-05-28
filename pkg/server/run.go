@@ -21,54 +21,34 @@ package server
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
-	"path"
 	"syscall"
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/sapcc/avocado-automation/pkg/stack"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
 var (
 	manager *Manager
+	logger  = log.WithField("package", "server")
 )
 
 func Run(port int) {
-	log.SetFormatter(&log.TextFormatter{})
+	log.SetFormatter(&log.TextFormatter{
+		FieldMap: log.FieldMap{
+			log.FieldKeyMsg: "message",
+		},
+	})
 	log.SetLevel(log.DebugLevel)
 	log.SetOutput(os.Stdout)
 
+	// load configuration files and initialize controllers
 	manager = NewManager()
-	log.Infof("configuration directory %s", manager.ConfigDirectory)
-	log.Infof("project directory: %s", manager.ProjectDirectory)
-
-	// read configuration files and initialize controllers
-	files, err := ioutil.ReadDir(manager.ConfigDirectory)
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, f := range files {
-		if f.IsDir() {
-			continue
-		}
-		c, err := stack.ReadConfig(path.Join(manager.ConfigDirectory, f.Name()))
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		_, err = manager.RegisterConfig(c)
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		log.Infof("register %s done", f.Name())
-	}
+	manager.ReloadConfigs()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -78,14 +58,12 @@ func Run(port int) {
 	r := mux.NewRouter()
 	r.Use(loggingMiddleware)
 	r.Headers("Content-Type", "application/json")
-	r.HandleFunc("/new", newStackHandler).Methods("POST")
-	r.HandleFunc("/update", updateStackHandler).Methods("POST")
+	r.HandleFunc("/stacks", stacks).Methods("GET")
+	r.HandleFunc("/reload", reload).Methods("GET")
 	r.HandleFunc("/{project}/{stack}/state", getStackState).Methods("GET")
-	r.HandleFunc("/{project}/{stack}/update", updateStack).Methods("POST")
-
-	// sd := "/static/"
-	// sdpath := viper.GetString("static_dir")
-	// r.PathPrefix(sd).Handler(http.StripPrefix(sd, http.FileServer(http.Dir(sdpath))))
+	r.HandleFunc("/{project}/{stack}/start", startStack).Methods("GET")
+	r.HandleFunc("/{project}/{stack}/stop", stopStack).Methods("GET")
+	r.HandleFunc("/{project}/{stack}/reload", reloadStack).Methods("GET")
 
 	h := pageHandler{
 		staticPath:   viper.GetString("static_path"),
@@ -101,9 +79,9 @@ func Run(port int) {
 	}
 
 	go func() {
-		log.Printf("listening on port %d", port)
+		logger.Printf("listening on port %d", port)
 		if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error(err)
+			logger.Error(err)
 		}
 	}()
 

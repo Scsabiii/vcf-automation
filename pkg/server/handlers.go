@@ -21,78 +21,143 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/gorilla/mux"
-	"github.com/sapcc/avocado-automation/pkg/stack"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
-func newStackHandler(w http.ResponseWriter, r *http.Request) {
-	cfg, err := getConfigFromRequestBody(r.Body)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
-	}
-	c, err := manager.RegisterNewConfig(cfg)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	// request is ok;
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(c.Config)
+type reloadResponse struct {
+	Message string          `json:"message,omitempty"`
+	Err     string          `json:"err,omitempty"`
+	Created []ConfigMessage `json:"created,omitempty"`
+	Updated []ConfigMessage `json:"updated,omitempty"`
+	Stopped []ConfigMessage `json:"stopped,omitempty"`
 }
 
-func updateStackHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := getConfigFromRequestBody(r.Body)
-	if err != nil {
-		handleError(w, http.StatusUnprocessableEntity, err)
-		return
-	}
-	l, err := manager.Get(c.FileName())
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-	}
-	err = l.UpdateConfig(c)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
-	}
-	// trigger stack update
-	l.TriggerUpdateStack()
-
-	// request is ok;
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(l.Config)
+type ConfigMessage struct {
+	ConfigName string `json:"config_name,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Err        string `json:"err,omitempty"`
 }
 
-func getConfigFromRequestBody(body io.ReadCloser) (*stack.Config, error) {
-	decoder := json.NewDecoder(body)
-	defer body.Close()
-	c := stack.Config{}
-	err := decoder.Decode(&c)
+func reload(w http.ResponseWriter, r *http.Request) {
+	created, updated, stopped, err := manager.ReloadConfigs()
 	if err != nil {
-		return nil, err
+		handleError(w, http.StatusInternalServerError, err)
+		return
 	}
-	if c.Project == "" {
-		return nil, fmt.Errorf("project not set")
+	resp := reloadResponse{
+		Message: "configs reloaded",
+		Created: make([]ConfigMessage, 0),
+		Updated: make([]ConfigMessage, 0),
+		Stopped: make([]ConfigMessage, 0),
 	}
-	if c.Stack == "" {
-		return nil, fmt.Errorf("stack not set")
+	for fn, e := range created {
+		if e == nil {
+			resp.Created = append(resp.Created, ConfigMessage{
+				ConfigName: fn,
+				Message:    "succsess",
+			})
+		} else {
+			resp.Created = append(resp.Created, ConfigMessage{
+				ConfigName: fn,
+				Err:        e.Error(),
+			})
+		}
 	}
-	return &c, nil
+	for fn, e := range updated {
+		if e == nil {
+			resp.Updated = append(resp.Updated, ConfigMessage{
+				ConfigName: fn,
+				Message:    "succsess",
+			})
+		} else {
+			resp.Updated = append(resp.Updated, ConfigMessage{
+				ConfigName: fn,
+				Err:        e.Error(),
+			})
+		}
+	}
+	for fn, e := range stopped {
+		if e == nil {
+			resp.Stopped = append(resp.Stopped, ConfigMessage{
+				ConfigName: fn,
+				Message:    "succsess",
+			})
+		} else {
+			resp.Stopped = append(resp.Stopped, ConfigMessage{
+				ConfigName: fn,
+				Err:        e.Error(),
+			})
+		}
+	}
+	js, err := json.Marshal(resp)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(js)
+}
+
+func startStack(w http.ResponseWriter, r *http.Request) {
+	c, err := getControllerByHttpRequest(r)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+	} else {
+		c.start()
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fmt.Sprintf("stack %s-%s started\n", c.Project, c.Stack)))
+	}
+}
+
+func stopStack(w http.ResponseWriter, r *http.Request) {
+	c, err := getControllerByHttpRequest(r)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
+	c.stop()
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(fmt.Sprintf("stack %s-%s stopped\n", c.Project, c.Stack)))
+}
+
+func reloadStack(w http.ResponseWriter, r *http.Request) {
+	c, err := getControllerByHttpRequest(r)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
+	nc, err := manager.Update(c.ConfigName())
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
+	nc.triggerUpdateStack()
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(fmt.Sprintf("stack %s-%s reloaded\n", c.Project, c.Stack)))
+}
+
+func stacks(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	for k, c := range manager.controllers {
+		if c.running {
+			w.Write([]byte(fmt.Sprintf("%s: running\n", k)))
+		} else {
+			w.Write([]byte(fmt.Sprintf("%s: stopped\n", k)))
+		}
+	}
 }
 
 func getStackState(w http.ResponseWriter, r *http.Request) {
-	c, err := getControllerForRequest(r)
+	c, err := getControllerByHttpRequest(r)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
+		return
 	}
 	if stackErr := c.GetError(); stackErr != nil {
 		w.WriteHeader(http.StatusOK)
@@ -101,15 +166,6 @@ func getStackState(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("no error in stack deployment"))
 	}
-}
-
-func updateStack(w http.ResponseWriter, r *http.Request) {
-	c, err := getControllerForRequest(r)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-	}
-	c.TriggerUpdateStack()
-	w.WriteHeader(http.StatusOK)
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {
@@ -129,12 +185,17 @@ func handleError(w http.ResponseWriter, statusCode int, e error) {
 	json.NewEncoder(w).Encode(msg)
 }
 
-func getControllerForRequest(r *http.Request) (*StackController, error) {
+func getControllerByHttpRequest(r *http.Request) (*StackController, error) {
 	vars := mux.Vars(r)
 	project := vars["project"]
 	stack := vars["stack"]
 	fname := fmt.Sprintf("%s-%s.yaml", project, stack)
-	return manager.Get(fname)
+	if sc, ok := manager.Get(fname); ok {
+		return sc, nil
+	} else {
+		err := fmt.Errorf("config not found: %s", fname)
+		return nil, err
+	}
 }
 
 func serveTemplate(w http.ResponseWriter, r *http.Request) {

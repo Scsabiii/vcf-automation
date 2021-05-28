@@ -20,6 +20,7 @@ package server
 
 import (
 	"fmt"
+	"io/ioutil"
 	"path"
 	"sync"
 
@@ -28,84 +29,150 @@ import (
 )
 
 type Manager struct {
-	controllers      map[string]*StackController
-	ProjectDirectory string
-	ConfigDirectory  string
+	controllers          map[string]*StackController
+	ProjectRootDirectory string
+	ConfigRootDirectory  string
 	sync.Mutex
 }
 
 type StackController struct {
 	*stack.Controller
-	updCh chan bool
+	running bool
+	updCh   chan bool
+	canCh   chan bool
 }
 
 func NewManager() *Manager {
-	workdir := viper.GetString("workdir")
-	projectdir := viper.GetString("project_dir")
+	workdir := viper.GetString("work_dir")
+	projectdir := viper.GetString("project_root")
+	configdir := viper.GetString("config_dir")
 	if projectdir == "" {
 		projectdir = path.Join(workdir, "projects")
 	}
+	if configdir == "" {
+		configdir = path.Join(workdir, "etc")
+	}
+	logger.Debugf("config directory: %s", configdir)
+	logger.Debugf("project directory: %s", projectdir)
 	return &Manager{
-		ProjectDirectory: projectdir,
-		ConfigDirectory:  path.Join(workdir, "etc"),
+		ProjectRootDirectory: projectdir,
+		ConfigRootDirectory:  configdir,
+		controllers:          make(map[string]*StackController),
 	}
 }
 
-func (m *Manager) RegisterConfig(cfg *stack.Config) (*StackController, error) {
-	c, err := stack.NewController(m.ProjectDirectory, m.ConfigDirectory, cfg)
-	if err != nil {
-		return nil, err
-	}
-	return m.register(c), nil
-}
-
-func (m *Manager) RegisterNewConfig(cfg *stack.Config) (*StackController, error) {
-	c, err := stack.NewController(m.ProjectDirectory, m.ConfigDirectory, cfg)
-	if err != nil {
-		return nil, err
-	}
-	err = stack.WriteNewConfig(c.ConfigFilePath, c.Config)
-	if err != nil {
-		return nil, err
-	}
-	return m.register(c), nil
-}
-
-func (m *Manager) register(c *stack.Controller) *StackController {
+func (m *Manager) Get(cfgFileName string) (*StackController, bool) {
 	m.Lock()
 	defer m.Unlock()
-	if m.controllers == nil {
-		m.controllers = make(map[string]*StackController)
-	}
-	key := c.Config.FileName()
-	sc := StackController{Controller: c}
-	m.controllers[key] = &sc
-	m.controllers[key].Run()
-	return &sc
+	c, ok := m.controllers[cfgFileName]
+	return c, ok
 }
 
-func (m *Manager) Get(key string) (*StackController, error) {
+func (m *Manager) Load(cfgFileName string) (*StackController, error) {
 	m.Lock()
 	defer m.Unlock()
-	errNotFound := fmt.Errorf("%q not found", key)
-	if m.controllers == nil {
-		return nil, errNotFound
+	if _, ok := m.controllers[cfgFileName]; ok {
+		return nil, fmt.Errorf("controller already exists")
 	}
-	if c, ok := m.controllers[key]; ok {
-		return c, nil
+	cfgFilePath := path.Join(m.ConfigRootDirectory, cfgFileName)
+	c, err := stack.NewControllerFromConfigFile(m.ProjectRootDirectory, cfgFilePath)
+	if err != nil {
+		return nil, err
+	}
+	sc := &StackController{Controller: c}
+	m.controllers[cfgFileName] = sc
+	return sc, nil
+}
+
+func (m *Manager) Update(cfgFileName string) (*StackController, error) {
+	m.Lock()
+	defer m.Unlock()
+	if sc, ok := m.controllers[cfgFileName]; !ok {
+		return nil, fmt.Errorf("controller not exist")
 	} else {
-		return nil, errNotFound
+		err := sc.ReloadConfig()
+		if err != nil {
+			return nil, err
+		}
+		return sc, nil
 	}
 }
 
-func (c *StackController) Run() {
+func (m *Manager) ListConfigFiles() (cfgFiles []string, err error) {
+	files, err := ioutil.ReadDir(manager.ConfigRootDirectory)
+	if err != nil {
+		return
+	}
+	for _, f := range files {
+		if !f.IsDir() {
+			cfgFiles = append(cfgFiles, f.Name())
+		}
+	}
+	return
+}
+
+func (m *Manager) ReloadConfigs() (created, updated, stopped map[string]error, err error) {
+	created = make(map[string]error)
+	updated = make(map[string]error)
+	stopped = make(map[string]error)
+	cfgFiles, err := manager.ListConfigFiles()
+	if err != nil {
+		logger.Errorf("load configs failed: %v", err)
+		return
+	}
+	for _, f := range cfgFiles {
+		if _, ok := manager.Get(f); !ok {
+			nc, err := manager.Load(f)
+			created[f] = err
+			if err != nil {
+				logger.Errorf("load %s: %v", f, err)
+				continue
+			}
+			logger.Infof("%s loaded", f)
+			nc.start()
+		} else {
+			nc, err := manager.Update(f)
+			updated[f] = err
+			if err != nil {
+				logger.Errorf("update %s: %v", f, err)
+				continue
+			}
+			logger.Infof("%s updated", f)
+			nc.triggerUpdateStack()
+		}
+	}
+	newfiles := make(map[string]struct{})
+	for _, f := range cfgFiles {
+		newfiles[f] = struct{}{}
+	}
+	for fname, c := range m.controllers {
+		if _, ok := newfiles[fname]; !ok {
+			stopped[fname] = nil
+			c.stop()
+			m.controllers[fname] = nil
+		}
+	}
+	return
+}
+func (c *StackController) start() {
 	if c.updCh == nil {
-		c.updCh = make(chan bool, 0)
+		c.updCh = make(chan bool)
 	}
-	go c.Controller.Run(c.updCh)
+	if c.canCh == nil {
+		c.canCh = make(chan bool)
+	}
+	c.running = true
+	go c.Controller.Run(c.updCh, c.canCh)
 }
 
-func (c *StackController) TriggerUpdateStack() {
+func (c *StackController) stop() {
+	c.running = false
+	go func() {
+		c.canCh <- true
+	}()
+}
+
+func (c *StackController) triggerUpdateStack() {
 	go func() {
 		c.updCh <- true
 	}()

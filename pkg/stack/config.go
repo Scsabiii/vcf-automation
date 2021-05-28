@@ -29,9 +29,9 @@ import (
 )
 
 const (
-	DeployEsxi    ProjectType = "esxi"
-	DeployExample ProjectType = "example"
-	DeployVCF     ProjectType = "management"
+	ProjectEsxi    ProjectType = "esxi"
+	ProjectExample ProjectType = "example-go"
+	ProjectVCF     ProjectType = "vcf"
 )
 
 // Config is configuration of project/stack
@@ -50,7 +50,7 @@ type ProjectType string
 type Props struct {
 	OpenstackProps OpenstackProps `json:"openstack" yaml:"openstack"`
 	StackProps     StackProps     `json:"stack" yaml:"stack"`
-	MoreStackProps []StackProps
+	BaseStackProps []StackProps
 	Keypair        Keypair
 }
 
@@ -67,14 +67,8 @@ type StackProps interface{}
 
 // Keypair stores ssh key pairs, which is loaded from the disk
 type Keypair struct {
-	keyPath    string
 	publicKey  string
 	privateKey string
-}
-
-// FileName generates the configuration file name with yaml extension
-func (c *Config) FileName() string {
-	return fmt.Sprintf("%s-%s.yaml", c.Project, c.Stack)
 }
 
 func ReadConfig(configFile string) (*Config, error) {
@@ -86,14 +80,27 @@ func ReadConfig(configFile string) (*Config, error) {
 	if err = yaml.Unmarshal(b, &c); err != nil {
 		return nil, err
 	}
-	for _, d := range c.DependsOn {
-		dc, err := ReadConfig(path.Join(path.Dir(configFile), d))
+	for _, fname := range c.DependsOn {
+		dc, err := ReadConfig(path.Join(path.Dir(configFile), fname))
 		if err != nil {
 			return nil, err
 		}
-		c.Props.MoreStackProps = append(c.Props.MoreStackProps, dc.Props.StackProps)
+		c.Props.BaseStackProps = append(c.Props.BaseStackProps, dc.Props.StackProps)
+	}
+	if err := c.validate(); err != nil {
+		return nil, err
 	}
 	return &c, nil
+}
+
+func (c *Config) validate() error {
+	if c.Project == "" {
+		return fmt.Errorf("project not set")
+	}
+	if c.Stack == "" {
+		return fmt.Errorf("stack not set")
+	}
+	return nil
 }
 
 func WriteNewConfig(fpath string, c *Config) error {
@@ -117,7 +124,7 @@ func writeConfig(fpath string, c *Config, overwrite bool) error {
 	// the actual structure it has. Otherwise it is serialized into a raw
 	// string
 	switch c.Project {
-	case DeployEsxi:
+	case ProjectEsxi:
 		p := esxi.StackProps{}
 		err := unmarshalStackProps(c.Props.StackProps, &p)
 		if err != nil {
@@ -155,7 +162,7 @@ func MergeStackPropsToConfig(c *Config, s StackProps) (*Config, error) {
 	// deep copy old config to nc
 	nc := *c
 	switch nc.Project {
-	case DeployEsxi:
+	case ProjectEsxi:
 		p := esxi.StackProps{}
 		err := unmarshalStackProps(c.Props.StackProps, &p)
 		if err != nil {
@@ -198,28 +205,4 @@ func unmarshalStackPropList(s []StackProps, props interface{}) error {
 		return err
 	}
 	return yaml.Unmarshal(b, props)
-}
-
-func validateConfig(c *Config) error {
-	if c.Project == "" {
-		return fmt.Errorf("validateConfig: project not set")
-	}
-	if !isValidProject(c.Project) {
-		return fmt.Errorf("project '%s' not supported", c.Project)
-	}
-	if c.Stack == "" {
-		return fmt.Errorf("validateConfig: stack not set")
-	}
-	return nil
-}
-
-func isValidProject(p ProjectType) bool {
-	if p == DeployEsxi {
-		return true
-	} else if p == DeployExample {
-		return true
-	} else if p == DeployVCF {
-		return true
-	}
-	return false
 }

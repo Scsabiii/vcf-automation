@@ -3,8 +3,8 @@ package stack
 import (
 	"context"
 	"fmt"
+	"os"
 	"path"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -17,48 +17,73 @@ import (
 
 type Controller struct {
 	*Config
-	ConfigFilePath string
-	ProjectPath    string
+	configFilePath string
+	projectPath    string
+	projectRoot    string
 	stack          Stack
 	configured     bool
 	err            error
 	mu             sync.Mutex
 }
 
-// NewController
-func NewController(prjPath, cfgPath string, c *Config) (*Controller, error) {
-	err := validateConfig(c)
-	if err != nil {
-		return nil, err
-	}
-	return &Controller{
-		ProjectPath:    prjPath,
-		ConfigFilePath: path.Join(cfgPath, c.FileName()),
-		Config:         c,
-	}, nil
-}
-
-// NewControllerFromConfigFile reads configuration file (fname) in the
-// configuration directory (cpath), and creates controller from it.
-func NewControllerFromConfigFile(projectDir, configFile string) (*Controller, error) {
-	c, err := ReadConfig(configFile)
-	if err != nil {
-		return nil, err
-	}
-	err = validateConfig(c)
+// NewControllerFromConfigFile reads stack config from configFile (full path of
+// configuration file), and initialize controller from it.
+func NewControllerFromConfigFile(projectRootDirectory, configFile string) (*Controller, error) {
+	cfg, err := ReadConfig(configFile)
 	if err != nil {
 		return nil, err
 	}
 	l := Controller{
-		ProjectPath:    projectDir,
-		ConfigFilePath: configFile,
-		Config:         c,
+		projectRoot:    projectRootDirectory,
+		projectPath:    path.Join(projectRootDirectory, string(cfg.Project)),
+		configFilePath: configFile,
+		Config:         cfg,
+	}
+	err = l.Validate()
+	if err != nil {
+		return nil, err
 	}
 	return &l, nil
 }
 
-func (c *Controller) Run(updateCh <-chan bool) {
+func (c *Controller) ReloadConfig() error {
+	cfg, err := ReadConfig(c.configFilePath)
+	if err != nil {
+		return err
+	}
+	if cfg.Project != c.Project {
+		return fmt.Errorf("project does not match")
+	}
+	if cfg.Stack != c.Stack {
+		return fmt.Errorf("config does not match")
+	}
+	c.Config = cfg
+	return nil
+}
+
+func (c *Controller) ConfigName() string {
+	return path.Base(c.configFilePath)
+}
+
+func (c *Controller) ConfigFullName() string {
+	return c.configFilePath
+}
+
+func (c *Controller) Validate() error {
+	switch c.Project {
+	case ProjectEsxi, ProjectExample, ProjectVCF:
+		if f, err := os.Stat(c.projectPath); err != nil || !f.IsDir() {
+			return fmt.Errorf("project directory does not exist: %s", c.projectPath)
+		}
+	default:
+		return fmt.Errorf("project not supported: %s", c.Project)
+	}
+	return nil
+}
+
+func (c *Controller) Run(updateCh <-chan bool, cancelCh <-chan bool) {
 	logger := log.WithFields(log.Fields{
+		"package": "stack",
 		"project": c.Project,
 		"stack":   c.Stack,
 	})
@@ -66,6 +91,7 @@ func (c *Controller) Run(updateCh <-chan bool) {
 	ticker := time.NewTicker(tickerDuration)
 	defer ticker.Stop()
 
+Forloop:
 	for {
 		func() {
 			ctx := context.Background()
@@ -113,6 +139,9 @@ func (c *Controller) Run(updateCh <-chan bool) {
 			// tickerDuration
 			c.configured = false
 			ticker.Reset(tickerDuration)
+		case <-cancelCh:
+			c.configured = false
+			break Forloop
 		case <-ticker.C:
 		}
 	}
@@ -134,7 +163,7 @@ func (l *Controller) UpdateConfig(s *Config) error {
 	if err != nil {
 		return err
 	}
-	err = WriteConfig(l.ConfigFilePath, nc)
+	err = WriteConfig(l.configFilePath, nc)
 	if err != nil {
 		return err
 	}
@@ -151,24 +180,20 @@ func (l *Controller) InitStack(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	switch ProjectType(l.Project) {
-	case DeployExample:
-		projectDir := filepath.Join(l.ProjectPath, "example-go")
-		if s, err := InitExampleStack(ctx, l.Stack, projectDir); err != nil {
+	case ProjectExample:
+		if s, err := InitExampleStack(ctx, l.Stack, l.projectPath); err != nil {
 			return err
 		} else {
 			l.stack = s
 		}
-	case DeployEsxi:
-		projectDir := filepath.Join(l.ProjectPath, "esxi")
-		stackName := l.Stack
-		s, err := esxi.InitEsxiStack(ctx, stackName, projectDir)
+	case ProjectEsxi:
+		s, err := esxi.InitEsxiStack(ctx, l.Stack, l.projectPath)
 		if err != nil {
 			return err
 		}
 		l.stack = s
-	case DeployVCF:
-		projectDir := filepath.Join(l.ProjectPath, "management")
-		s, err := vcf.InitVCFStack(ctx, l.Stack, projectDir)
+	case ProjectVCF:
+		s, err := vcf.InitVCFStack(ctx, l.Stack, l.projectPath)
 		if err != nil {
 			return err
 		}
@@ -196,7 +221,7 @@ func (c *Controller) ConfigureStack(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = c.readKeypair(path.Join(path.Dir(c.ConfigFilePath), ".ssh"))
+	err = c.readKeypair(path.Join(path.Dir(c.configFilePath), ".ssh"))
 	if err != nil {
 		return err
 	}
@@ -293,9 +318,9 @@ func configureKeypair(ctx context.Context, s Stack, kp Keypair) error {
 // configure stack props
 func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
 	switch ProjectType(cfg.Project) {
-	case DeployExample:
-	case DeployEsxi:
-		stackProps := append([]StackProps{cfg.Props.StackProps}, cfg.Props.MoreStackProps...)
+	case ProjectExample:
+	case ProjectEsxi:
+		stackProps := append([]StackProps{cfg.Props.StackProps}, cfg.Props.BaseStackProps...)
 		props := make([]esxi.StackProps, len(stackProps))
 		err := unmarshalStackProps(cfg.Props.StackProps, &props)
 		if err != nil {
@@ -305,8 +330,8 @@ func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
 		if err != nil {
 			return err
 		}
-	case DeployVCF:
-		stackProps := append([]StackProps{cfg.Props.StackProps}, cfg.Props.MoreStackProps...)
+	case ProjectVCF:
+		stackProps := append([]StackProps{cfg.Props.StackProps}, cfg.Props.BaseStackProps...)
 		props := make([]vcf.StackProps, len(stackProps))
 		err := unmarshalStackPropList(stackProps, &props)
 		if err != nil {
