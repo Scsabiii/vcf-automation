@@ -4,7 +4,7 @@ metadata:
   name: automation
 build:
   artifacts:
-    - image: keppel.eu-de-1.cloud.sap/ccloud/avocado-automation
+    - image: keppel.eu-de-1.cloud.sap/ccloud/vcf-automation
       sync:
         manual:
           - src: "bin/automation_linux_amd64"

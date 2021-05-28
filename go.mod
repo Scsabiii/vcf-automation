@@ -1,4 +1,4 @@
-module github.com/sapcc/avocado-automation
+module github.com/sapcc/vcf-automation
 
 go 1.15
 

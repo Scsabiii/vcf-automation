@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
-	"github.com/sapcc/avocado-automation/pkg/stack/esxi"
-	"github.com/sapcc/avocado-automation/pkg/stack/vcf"
+	"github.com/sapcc/vcf-automation/pkg/stack/esxi"
+	"github.com/sapcc/vcf-automation/pkg/stack/vcf"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )

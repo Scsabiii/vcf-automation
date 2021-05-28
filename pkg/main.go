@@ -18,7 +18,7 @@
 
 package main
 
-import "github.com/sapcc/avocado-automation/pkg/cmd"
+import "github.com/sapcc/vcf-automation/pkg/cmd"
 
 func main() {
 	cmd.Execute()

@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/sapcc/avocado-automation/pkg/stack"
+	"github.com/sapcc/vcf-automation/pkg/stack"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

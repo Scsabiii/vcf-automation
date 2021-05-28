@@ -7,7 +7,7 @@ metadata:
 spec:
   containers:
     - name: automation
-      image: keppel.eu-de-1.cloud.sap/ccloud/avocado-automation:latest
+      image: keppel.eu-de-1.cloud.sap/ccloud/vcf-automation:latest
       command:
         - "/pulumi/bin/automation"
         - "server"
@@ -15,7 +15,7 @@ spec:
         - name: PULUMI_CONFIG_PASSPHRASE
           value: pass4config
         - name: PULUMI_BACKEND_URL
-          value: file:///pulumi/avocado/etc
+          value: file:///pulumi/automation/etc
         - name: AUTOMATION_PORT
           value: "8080"
         - name: AUTOMATION_OS_PASSWORD
@@ -28,12 +28,18 @@ spec:
             secretKeyRef:
               name: ccmaas-pass
               key: os_username
+        - name: AUTOMATION_WORK_DIR
+          value: /pulumi/automation
+        - name: AUTOMATION_PROJECT_ROOT
+          value: /pulumi/automation/projects
+        - name: AUTOMATION_CONFIG_DIR
+          value: /pulumi/automation/etc
         - name: AUTOMATION_STATIC_PATH
-          value: /pulumi/avocado/static
+          value: /pulumi/automation/static
         - name: AUTOMATION_TEMPLATE_PATH
-          value: /pulumi/avocado/templates
+          value: /pulumi/automation/templates
       volumeMounts:
-        - mountPath: /pulumi/avocado/etc
+        - mountPath: /pulumi/automation/etc
           subPath: etc
           name: pvc
       ports:

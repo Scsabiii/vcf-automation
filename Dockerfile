@@ -1,7 +1,7 @@
 FROM pulumi/pulumi-python:3.2.0
-LABEL source_repository="https://github.com/sapcc/avocado-automation"
+LABEL source_repository="https://github.com/sapcc/vcf-automation"
 
-ARG workdir=/pulumi/avocado
+ARG workdir=/pulumi/automation
 WORKDIR ${workdir} 
 
 RUN pip install --no-cache-dir --upgrade pip && \
@@ -24,7 +24,7 @@ RUN apt update && \
 	rm -rf /var/lib/apt/lists/*
 
 # COPY test/etc ${workdir}/etc
-COPY test/projects/management ${workdir}/projects/management
+COPY test/projects/vcf ${workdir}/projects/vcf
 COPY bin/automation /pulumi/bin/automation
 COPY static ${workdir}/static
 COPY templates ${workdir}/templates

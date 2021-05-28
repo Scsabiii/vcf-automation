@@ -24,7 +24,7 @@ import (
 	"path"
 	"sync"
 
-	"github.com/sapcc/avocado-automation/pkg/stack"
+	"github.com/sapcc/vcf-automation/pkg/stack"
 	"github.com/spf13/viper"
 )
 

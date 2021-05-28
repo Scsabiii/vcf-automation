@@ -24,7 +24,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/sapcc/avocado-automation/pkg/stack/esxi"
+	"github.com/sapcc/vcf-automation/pkg/stack/esxi"
 	"gopkg.in/yaml.v2"
 )
 
