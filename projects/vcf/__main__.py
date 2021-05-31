@@ -57,8 +57,7 @@ provider_ccadmin_master = Provider(
 ###################################################################################
 # key pair
 ###################################################################################
-public_key_file = "/pulumi/avocado/etc/.ssh/id_rsa.pub"
-private_key_file = "/pulumi/avocado/etc/.ssh/id_rsa"
+public_key_file = config.require("publicKeyFile")
 with open(public_key_file) as f:
     pk = f.read()
     key_pair = compute.Keypair("rsa-keypair", public_key=pk)

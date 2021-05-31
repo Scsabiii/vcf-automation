@@ -34,9 +34,9 @@ class VCFStack:
         self.stack_name = pulumi.get_stack()
 
         try:
-            private_networks=json.loads(self.config.require("privateNetworks"))
+            private_networks = json.loads(self.config.require("privateNetworks"))
         except ConfigMissingError:
-            private_networks=[]
+            private_networks = []
         try:
             esxi_nodes = json.loads(self.config.require("esxiNodes"))
         except ConfigMissingError:
@@ -45,12 +45,12 @@ class VCFStack:
             reserved_ips = json.loads(self.config.require("reservedIPs"))
         except ConfigMissingError:
             reserved_ips = []
-
-        public_key_file=self.config.get("publicKeyFile") or "/pulumi/avocado/etc/.ssh/id_rsa.pub"
-        private_key_file=self.config.get("privateKeyFile") or "/pulumi/avocado/etc/.ssh/id_rsa"
-
-        esxi_image = self.config.get("esxiServerImage")
-        esxi_flavor_id = self.config.get("esxiServerFlavorID")
+        public_key_file = (
+            self.config.get("publicKeyFile") or "/pulumi/automation/etc/.ssh/id_rsa.pub"
+        )
+        private_key_file = (
+            self.config.get("privateKeyFile") or "/pulumi/automation/etc/.ssh/id_rsa"
+        )
 
         self.props = SimpleNamespace(
             external_network=json.loads(self.config.require("externalNetwork")),
@@ -62,8 +62,8 @@ class VCFStack:
             private_networks=private_networks,
             esxi_nodes=esxi_nodes,
             reserved_ips=reserved_ips,
-            esxi_image = esxi_image,
-            esxi_flavor_id=esxi_flavor_id,
+            esxi_image=self.config.get("esxiServerImage"),
+            esxi_flavor_id=self.config.get("esxiServerFlavorID"),
             public_key_file=public_key_file,
             private_key_file=private_key_file,
         )
@@ -92,14 +92,22 @@ class VCFSharedStack:
         self.stack_name = pulumi.get_stack()
         self.key_pair = key_pair
         self.provider_cloud_admin = provider_cloud_admin
+
+        public_key_file = (
+            self.config.get("publicKeyFile") or "/pulumi/automation/etc/.ssh/id_rsa.pub"
+        )
+        private_key_file = (
+            self.config.get("privateKeyFile") or "/pulumi/automation/etc/.ssh/id_rsa"
+        )
+
         self.props = SimpleNamespace(
             external_network=json.loads(self.config.require("externalNetwork")),
             mgmt_network=json.loads(self.config.require("managementNetwork")),
             deploy_network=json.loads(self.config.require("deploymentNetwork")),
             helper_vm=json.loads(self.config.require("helperVM")),
             public_router_name=self.config.require("publicRouter"),
-            public_key_file="/pulumi/avocado/etc/.ssh/id_rsa.pub",
-            private_key_file="/pulumi/avocado/etc/.ssh/id_rsa",
+            public_key_file=public_key_file,
+            private_key_file=private_key_file,
         )
         mgmt_network = networking.get_network(name=self.props.mgmt_network["name"])
         mgmt_subnet = networking.get_subnet(name=self.props.mgmt_network["subnet_name"])
@@ -230,8 +238,8 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             "copy-remove-vmk0",
             host_id=helper_vm.id,
             conn=conn_args,
-            src="./scripts/remove-vmk0.sh",
-            dest="/home/ccloud/remove-vmk0.sh",
+            src="./scripts/cleanup.sh",
+            dest="/home/ccloud/cleanup.sh",
             opts=ResourceOptions(depends_on=[attach_external_ip]),
         )
         CopyFile(

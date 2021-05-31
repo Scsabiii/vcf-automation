@@ -209,82 +209,69 @@ class WorkloadStack(VCFStack):
                 opts=ResourceOptions(depends_on=[instance]),
             )
 
-            self._configure_esxi_node(node_name, instance, subport_management)
+            self._configure_esxi_node(instance, node_name, node_ip)
 
-    def _configure_esxi_node(self, node_name, instance, mgmt_port):
-        conn_args = ConnectionArgs(
-            host=self.props.helper_vm["ip"],
-            username="ccloud",
-            private_key_file=self.props.private_key_file,
-        )
+    def _configure_esxi_node(self, instance, node_name, node_ip):
         # set password
         command_set_passwd = instance.access_ip_v4.apply(
-            lambda args: (
+            lambda local_ip: (
                 "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "
                 "-i /home/ccloud/esxi_rsa root@{} 'echo VMware1!VMware1! | passwd --stdin root'"
-            ).format(args)
+            ).format(local_ip)
         )
         # config node
-        command_config = Output.all(
-            instance.access_ip_v4, mgmt_port.all_fixed_ips
-        ).apply(
-            lambda args: "pwsh /home/ccloud/config.sh -LocalIP {} -IP {} -Gateway {} -Netmask {}".format(
-                args[0],
-                args[1][0],
+        command_config = instance.access_ip_v4.apply(
+            lambda local_ip: "pwsh /home/ccloud/config.sh -LocalIP {} -IP {} -Gateway {} -Netmask {}".format(
+                local_ip,
+                node_ip,
                 self.props.mgmt_network["subnet_gateway"],
                 self.props.mgmt_network["subnet_mask"],
             )
         )
         # remove vmk0
-        command_remove_vmk0 = mgmt_port.all_fixed_ips.apply(
-            lambda args: "pwsh /home/ccloud/remove-vmk0.sh -HostIP {}".format(args[0])
+        command_cleanup = "pwsh /home/ccloud/cleanup.sh -HostIP {}".format(node_ip)
+
+        # connection
+        conn_helper_args = ConnectionArgs(
+            host=self.props.helper_vm["ip"],
+            username="ccloud",
+            private_key_file=self.props.private_key_file,
         )
-        # generate certificates after setting the domain name
-        command_gen_cert = mgmt_port.all_fixed_ips.apply(
-            lambda args: (
-                "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "
-                "-i /home/ccloud/esxi_rsa root@{} '/sbin/generate-certificates'"
-            ).format(args[0])
-        )
-        # restart hostd
-        command_restart_hostd = mgmt_port.all_fixed_ips.apply(
-            lambda args: (
-                "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "
-                "-i /home/ccloud/esxi_rsa root@{} '/etc/init.d/hostd restart'"
-            ).format(args[0])
-        )
-        # restart vpxa
-        command_restart_vpxa = mgmt_port.all_fixed_ips.apply(
-            lambda args: (
-                "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "
-                "-i /home/ccloud/esxi_rsa root@{} '/etc/init.d/vpxa restart'"
-            ).format(args[0])
+        conn_esxi_args = ConnectionArgs(
+            host=node_ip,
+            username="root",
+            private_key_file=self.props.private_key_file,
         )
 
+        # execution
         step_1 = RemoteExec(
             "configure-" + node_name + "-step-1",
             host_id=instance.id,
-            conn=conn_args,
+            conn=conn_helper_args,
             commands=[command_set_passwd],
         )
         step_2 = RemoteExec(
             "configure-" + node_name + "-step-2",
             host_id=instance.id,
-            conn=conn_args,
+            conn=conn_helper_args,
             commands=[command_config],
             opts=ResourceOptions(depends_on=[step_1]),
         )
         step_3 = RemoteExec(
             "configure-" + node_name + "-step-3",
             host_id=instance.id,
-            conn=conn_args,
-            commands=[command_gen_cert, command_restart_hostd, command_restart_vpxa],
+            conn=conn_esxi_args,
+            commands=[
+                "/sbin/generate-certificates",
+                "/etc/init.d/hostd restart",
+                "/etc/init.d/vpxa restart",
+            ],
             opts=ResourceOptions(depends_on=[step_2]),
         )
         step_4 = RemoteExec(
             "configure-" + node_name + "-step-4",
             host_id=instance.id,
-            conn=conn_args,
-            commands=[command_remove_vmk0],
+            conn=conn_helper_args,
+            commands=[command_cleanup],
             opts=ResourceOptions(depends_on=[step_3]),
         )
