@@ -156,7 +156,7 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             opts=ResourceOptions(depends_on=[attach_external_ip]),
         )
 
-        # send files to helper vm
+        # copy rsa key
         CopyFile(
             "copy-rsa-key",
             host_id=helper_vm.id,
@@ -166,15 +166,17 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             mode="600",
             opts=ResourceOptions(depends_on=[attach_external_ip]),
         )
+
+        # copy from path relative to the project root
         CopyFile(
             "copy-cleanup",
             host_id=helper_vm.id,
             conn=conn_args,
-            src="../scripts/cleanup.sh",
+            src="./scripts/cleanup.sh",
             dest="/home/ccloud/cleanup.sh",
             opts=ResourceOptions(depends_on=[attach_external_ip]),
         )
-        with open("../scripts/config.sh") as f:
+        with open("./scripts/config.sh") as f:
             template = jinja2.Template(f.read())
             config_script = template.render(
                 management_network=self.props.mgmt_network,

@@ -1,4 +1,4 @@
-name: management
+name: vcf
 runtime:
   name: python
-description: A minimal OpenStack Python Pulumi program
+description: VCF build up project
