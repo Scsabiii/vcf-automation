@@ -18,7 +18,7 @@
 
 package main
 
-import "github.com/sapcc/vcf-automation/pkg/cmd"
+import "github.com/sapcc/vcf-automation/cmd"
 
 func main() {
 	cmd.Execute()
