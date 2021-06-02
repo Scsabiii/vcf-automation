@@ -1,7 +1,7 @@
 {
   "executionEnvironments": [
     {
-      "root": "projects/management"
+      "root": "projects/vcf"
     }
   ]
 }

@@ -1,37 +1,45 @@
 import json
 
 import pulumi
+from pulumi import resource
+from pulumi.config import ConfigMissingError
 from pulumi.invoke import InvokeOptions
 from pulumi.output import Output
 from pulumi.resource import ResourceOptions
+from pulumi.stack_reference import StackReference
 from pulumi_openstack import Provider, compute, dns, networking
+from pulumi_openstack.compute import keypair
 
 from provisioners import ConnectionArgs, RemoteExec
-from shared_stack import VCFStack, resources_cache
+
+from .vcf_stack import VCFStack, resources_cache
 
 
-class WorkloadStack(VCFStack):
+class ManagementStack(VCFStack):
     def __init__(self, key_pair, provider_ccadmin_master) -> None:
-        super(WorkloadStack, self).__init__()
+        super(ManagementStack, self).__init__()
         self.key_pair = key_pair
         self.provider_ccadmin_master = provider_ccadmin_master
 
     def provision(self):
-        self._provision_private_router()
-        self._provision_private_networks()
+        self._provision_networks()
+        self._provision_reserved_names()
         self._provision_esxi_dns_recrods()
-        self._provision_esxi_servers()
+        self._provision_esxi_nodes()
 
-    @resources_cache("private_router")
-    def _provision_private_router(self):
-        return networking.Router(
-            "private-router-" + self.stack_name,
-            name="private-router-" + self.stack_name,
+        for s in self.resources.esxi_servers:
+            self._configure_esxi_server(s)
+
+    @resources_cache("private_networks")
+    def _provision_networks(self):
+        """ private networks """
+
+        privateRouter = networking.Router(
+            "mgmtdomain-private-router",
+            name="mgmtdomain-private-router-" + self.stack_name,
             opts=ResourceOptions(delete_before_replace=True),
         )
 
-    @resources_cache("private_networks")
-    def _provision_private_networks(self):
         private_networks = {}
         for props in self.props.private_networks:
             network = networking.Network("private-network-" + props["name"])
@@ -44,7 +52,7 @@ class WorkloadStack(VCFStack):
             )
             networking.RouterInterface(
                 "router-interface-" + props["name"],
-                router_id=self.resources.private_router.id,
+                router_id=privateRouter.id,
                 subnet_id=subnet.id,
                 opts=ResourceOptions(delete_before_replace=True),
             )
@@ -85,30 +93,74 @@ class WorkloadStack(VCFStack):
             ),
         )
 
+    def _provision_reserved_names(self):
+        for r in self.props.reserved_ips:
+            ipaddr, name = r["ip"], r["name"]
+            self._provision_dns_record(name, ipaddr)
+            networking.Port(
+                "reserved-port-" + ipaddr,
+                network_id=self.resources.mgmt_network.id,
+                fixed_ips=[
+                    networking.PortFixedIpArgs(
+                        subnet_id=self.resources.mgmt_subnet.id,
+                        ip_address=ipaddr,
+                    )
+                ],
+                opts=ResourceOptions(delete_before_replace=True),
+            )
+
     def _provision_esxi_dns_recrods(self):
         for n in self.props.esxi_nodes:
             node_name, node_ip = n["name"], n["ip"]
             self._provision_dns_record("esxi-" + node_name, node_ip)
 
-    def _provision_esxi_servers(self):
+    @resources_cache("esxi_servers")
+    def _provision_esxi_nodes(self):
+        """ esxi installation """
+        esxi_servers = []
+
         for n in self.props.esxi_nodes:
             node_name, node_id, node_ip = n["name"], n["id"], n["ip"]
             parent_port = networking.Port(
                 node_name + "-deployment",
                 network_id=self.resources.deploy_network.id,
             )
-            instance = compute.Instance(
-                "esxi-" + node_name,
-                name="esxi-" + node_name,
-                availability_zone_hints=f"::{node_id}",
-                flavor_id=self.props.esxi_flavor_id,
-                image_name=self.props.esxi_image,
-                networks=[compute.InstanceNetworkArgs(port=parent_port.id)],
-                key_pair=self.key_pair.name,
-                opts=ResourceOptions(
-                    delete_before_replace=True, ignore_changes=["image_name"]
-                ),
+            if n.get("image_name") is not None:
+                instance = compute.Instance(
+                    "esxi-" + node_name,
+                    name="esxi-" + node_name,
+                    availability_zone_hints=f"::{node_id}",
+                    flavor_id=self.props.esxi_flavor_id,
+                    image_name=n.get("image_name"),
+                    networks=[compute.InstanceNetworkArgs(port=parent_port.id)],
+                    key_pair=self.key_pair.name,
+                    opts=ResourceOptions(
+                        delete_before_replace=True, ignore_changes=["image_name"]
+                    ),
+                )
+            else:
+                instance = compute.Instance(
+                    "esxi-" + node_name,
+                    name="esxi-" + node_name,
+                    availability_zone_hints=f"::{node_id}",
+                    flavor_id=self.props.esxi_flavor_id,
+                    image_name=self.props.esxi_image,
+                    networks=[compute.InstanceNetworkArgs(port=parent_port.id)],
+                    key_pair=self.key_pair.name,
+                    opts=ResourceOptions(
+                        delete_before_replace=True, ignore_changes=["image_name"]
+                    ),
+                )
+
+            esxi_servers.append(
+                {
+                    "node_name": node_name,
+                    "node_id": node_id,
+                    "node_ip": node_ip,
+                    "server": instance,
+                }
             )
+
             subport_vmotion = networking.Port(
                 node_name + "-vmotion",
                 admin_state_up=True,
@@ -209,18 +261,30 @@ class WorkloadStack(VCFStack):
                 opts=ResourceOptions(depends_on=[instance]),
             )
 
-            self._configure_esxi_node(instance, node_name, node_ip)
+            pulumi.export("port_vmotion", subport_vmotion.name)
+            pulumi.export("port_edgetep", subport_edgetep.name)
+            pulumi.export("port_hosttep", subport_hosttep.name)
+            pulumi.export("port_nfs", subport_nfs.name)
+            pulumi.export("port_vsan", subport_vsan.name)
+            pulumi.export("port_vsanwiteness", subport_vsanwitness.name)
 
-    def _configure_esxi_node(self, instance, node_name, node_ip):
+        return esxi_servers
+
+    def _configure_esxi_server(self, esxi_server):
+        server, node_name, node_ip = (
+            esxi_server["server"],
+            esxi_server["node_name"],
+            esxi_server["node_ip"],
+        )
         # set password
-        command_set_passwd = instance.access_ip_v4.apply(
+        command_set_passwd = server.access_ip_v4.apply(
             lambda local_ip: (
                 "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "
                 "-i /home/ccloud/esxi_rsa root@{} 'echo VMware1!VMware1! | passwd --stdin root'"
             ).format(local_ip)
         )
         # config node
-        command_config = instance.access_ip_v4.apply(
+        command_config = server.access_ip_v4.apply(
             lambda local_ip: "pwsh /home/ccloud/config.sh -LocalIP {} -IP {} -Gateway {} -Netmask {}".format(
                 local_ip,
                 node_ip,
@@ -246,20 +310,20 @@ class WorkloadStack(VCFStack):
         # execution
         step_1 = RemoteExec(
             "configure-" + node_name + "-step-1",
-            host_id=instance.id,
+            host_id=server.id,
             conn=conn_helper_args,
             commands=[command_set_passwd],
         )
         step_2 = RemoteExec(
             "configure-" + node_name + "-step-2",
-            host_id=instance.id,
+            host_id=server.id,
             conn=conn_helper_args,
             commands=[command_config],
             opts=ResourceOptions(depends_on=[step_1]),
         )
         step_3 = RemoteExec(
             "configure-" + node_name + "-step-3",
-            host_id=instance.id,
+            host_id=server.id,
             conn=conn_esxi_args,
             commands=[
                 "/sbin/generate-certificates",
@@ -270,7 +334,7 @@ class WorkloadStack(VCFStack):
         )
         step_4 = RemoteExec(
             "configure-" + node_name + "-step-4",
-            host_id=instance.id,
+            host_id=server.id,
             conn=conn_helper_args,
             commands=[command_cleanup],
             opts=ResourceOptions(depends_on=[step_3]),

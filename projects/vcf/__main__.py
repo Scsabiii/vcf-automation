@@ -13,9 +13,7 @@ from pulumi_openstack.networking.get_network import get_network
 from pulumi_openstack.networking.get_subnet import get_subnet
 
 
-from management_stack import ManagementStack
-from shared_stack import VCFSharedStack
-from workload_stack import WorkloadStack
+from vcf import ManagementStack, SharedStack, WorkloadStack
 
 
 # stack
@@ -62,6 +60,7 @@ with open(public_key_file) as f:
     pk = f.read()
     key_pair = compute.Keypair("rsa-keypair", public_key=pk)
 
+
 ###################################################################################
 # public networks
 ###################################################################################
@@ -69,7 +68,7 @@ externalNetworkProps = json.loads(config.require("externalNetwork"))
 managementNetworkPorps = json.loads(config.require("managementNetwork"))
 
 if stack_name == "shared":
-    ss = VCFSharedStack(key_pair, provider_cloud_admin)
+    ss = SharedStack(key_pair, provider_cloud_admin)
     ss.proivsion()
     exit(0)
 
@@ -82,28 +81,3 @@ if stack_name == "workload":
     ws = WorkloadStack(key_pair, provider_ccadmin_master)
     ws.provision()
     exit(0)
-
-
-###################################################################################
-# load more settings
-###################################################################################
-helper_vm = json.loads(config.require("helperVM"))
-
-
-###################################################################################
-# register dns records
-###################################################################################
-
-####################################################################################
-## helper vm
-####################################################################################
-####################################################################################
-## copy file to helper
-####################################################################################
-
-# Export the IP of the instance
-# pulumi.export("DapnIPNetworkID", management_network["network"].id)
-# pulumi.export("DapnIPSubnetID", management_network["subnet"].id)
-# pulumi.export("helperVMIP", port_1.all_fixed_ips[0])
-
-# pulumi.export("exec_2", exec_2.results)

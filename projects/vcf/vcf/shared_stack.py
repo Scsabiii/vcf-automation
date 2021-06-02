@@ -1,92 +1,15 @@
 import json
-from os import name
-import jinja2
-
-import pulumi
-from pulumi.config import ConfigMissingError
-from pulumi.resource import ResourceOptions
-from pulumi_openstack import compute, dns, networking
 from types import SimpleNamespace
 
-from provisioners import (
-    ConnectionArgs,
-    CopyFile,
-    CopyFileFromString,
-    RemoteExec,
-)
+import jinja2
+import pulumi
+from pulumi.resource import ResourceOptions
+from pulumi_openstack import compute, dns, networking
+
+from provisioners import ConnectionArgs, CopyFile, CopyFileFromString, RemoteExec
 
 
-def resources_cache(name):
-    def inner(fn):
-        def wrapper(self, *args, **kwargs):
-            res = fn(self, *args, **kwargs)
-            setattr(self.resources, name, res)
-            return res
-
-        return wrapper
-
-    return inner
-
-
-class VCFStack:
-    def __init__(self) -> None:
-        self.config = pulumi.Config()
-        self.stack_name = pulumi.get_stack()
-
-        try:
-            private_networks = json.loads(self.config.require("privateNetworks"))
-        except ConfigMissingError:
-            private_networks = []
-        try:
-            esxi_nodes = json.loads(self.config.require("esxiNodes"))
-        except ConfigMissingError:
-            esxi_nodes = []
-        try:
-            reserved_ips = json.loads(self.config.require("reservedIPs"))
-        except ConfigMissingError:
-            reserved_ips = []
-        public_key_file = (
-            self.config.get("publicKeyFile") or "/pulumi/automation/etc/.ssh/id_rsa.pub"
-        )
-        private_key_file = (
-            self.config.get("privateKeyFile") or "/pulumi/automation/etc/.ssh/id_rsa"
-        )
-
-        self.props = SimpleNamespace(
-            external_network=json.loads(self.config.require("externalNetwork")),
-            mgmt_network=json.loads(self.config.require("managementNetwork")),
-            deploy_network=json.loads(self.config.require("deploymentNetwork")),
-            dns_zone_name=self.config.require("dnsZoneName"),
-            reverse_dns_zone_name=self.config.require("reverseDnsZoneName"),
-            helper_vm=json.loads(self.config.require("helperVM")),
-            private_networks=private_networks,
-            esxi_nodes=esxi_nodes,
-            reserved_ips=reserved_ips,
-            esxi_image=self.config.get("esxiServerImage"),
-            esxi_flavor_id=self.config.get("esxiServerFlavorID"),
-            public_key_file=public_key_file,
-            private_key_file=private_key_file,
-        )
-
-        deploy_network = networking.get_network(name=self.props.deploy_network["name"])
-        deploy_subnet = networking.get_subnet(
-            name=self.props.deploy_network["subnet_name"],
-            network_id=deploy_network.id,
-            cidr=self.props.deploy_network["cidr"],
-            ip_version=4,
-        )
-        mgmt_network = networking.get_network(name=self.props.mgmt_network["name"])
-        mgmt_subnet = networking.get_subnet(name=self.props.mgmt_network["subnet_name"])
-
-        self.resources = SimpleNamespace(
-            deploy_network=deploy_network,
-            deploy_subnet=deploy_subnet,
-            mgmt_network=mgmt_network,
-            mgmt_subnet=mgmt_subnet,
-        )
-
-
-class VCFSharedStack:
+class SharedStack:
     def __init__(self, key_pair, provider_cloud_admin):
         self.config = pulumi.Config()
         self.stack_name = pulumi.get_stack()
@@ -235,14 +158,6 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
 
         # send files to helper vm
         CopyFile(
-            "copy-remove-vmk0",
-            host_id=helper_vm.id,
-            conn=conn_args,
-            src="./scripts/cleanup.sh",
-            dest="/home/ccloud/cleanup.sh",
-            opts=ResourceOptions(depends_on=[attach_external_ip]),
-        )
-        CopyFile(
             "copy-rsa-key",
             host_id=helper_vm.id,
             conn=conn_args,
@@ -251,7 +166,15 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             mode="600",
             opts=ResourceOptions(depends_on=[attach_external_ip]),
         )
-        with open("./scripts/config.sh") as f:
+        CopyFile(
+            "copy-cleanup",
+            host_id=helper_vm.id,
+            conn=conn_args,
+            src="../scripts/cleanup.sh",
+            dest="/home/ccloud/cleanup.sh",
+            opts=ResourceOptions(depends_on=[attach_external_ip]),
+        )
+        with open("../scripts/config.sh") as f:
             template = jinja2.Template(f.read())
             config_script = template.render(
                 management_network=self.props.mgmt_network,

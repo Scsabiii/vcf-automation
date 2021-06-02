@@ -1,45 +1,37 @@
 import json
 
 import pulumi
-from pulumi import resource
-from pulumi.config import ConfigMissingError
 from pulumi.invoke import InvokeOptions
 from pulumi.output import Output
 from pulumi.resource import ResourceOptions
-from pulumi.stack_reference import StackReference
-from pulumi_openstack import compute, dns, networking, Provider
-from pulumi_openstack.compute import keypair
+from pulumi_openstack import Provider, compute, dns, networking
 
-from shared_stack import VCFStack, resources_cache
-
-from provisioners import (
-    ConnectionArgs,
-    RemoteExec,
-)
+from provisioners import ConnectionArgs, RemoteExec
+from .vcf_stack import VCFStack, resources_cache
 
 
-class ManagementStack(VCFStack):
+class WorkloadStack(VCFStack):
     def __init__(self, key_pair, provider_ccadmin_master) -> None:
-        super(ManagementStack, self).__init__()
+        super(WorkloadStack, self).__init__()
         self.key_pair = key_pair
         self.provider_ccadmin_master = provider_ccadmin_master
 
     def provision(self):
-        self._provision_networks()
-        self._provision_reserved_names()
+        self._provision_private_router()
+        self._provision_private_networks()
         self._provision_esxi_dns_recrods()
-        self._provision_esxi_nodes()
+        self._provision_esxi_servers()
 
-    @resources_cache("private_networks")
-    def _provision_networks(self):
-        """ private networks """
-
-        privateRouter = networking.Router(
-            "mgmtdomain-private-router",
-            name="mgmtdomain-private-router-" + self.stack_name,
+    @resources_cache("private_router")
+    def _provision_private_router(self):
+        return networking.Router(
+            "private-router-" + self.stack_name,
+            name="private-router-" + self.stack_name,
             opts=ResourceOptions(delete_before_replace=True),
         )
 
+    @resources_cache("private_networks")
+    def _provision_private_networks(self):
         private_networks = {}
         for props in self.props.private_networks:
             network = networking.Network("private-network-" + props["name"])
@@ -52,7 +44,7 @@ class ManagementStack(VCFStack):
             )
             networking.RouterInterface(
                 "router-interface-" + props["name"],
-                router_id=privateRouter.id,
+                router_id=self.resources.private_router.id,
                 subnet_id=subnet.id,
                 opts=ResourceOptions(delete_before_replace=True),
             )
@@ -93,68 +85,30 @@ class ManagementStack(VCFStack):
             ),
         )
 
-    def _provision_reserved_names(self):
-        for r in self.props.reserved_ips:
-            ipaddr, name = r["ip"], r["name"]
-            self._provision_dns_record(name, ipaddr)
-            networking.Port(
-                "reserved-port-" + ipaddr,
-                network_id=self.resources.mgmt_network.id,
-                fixed_ips=[
-                    networking.PortFixedIpArgs(
-                        subnet_id=self.resources.mgmt_subnet.id,
-                        ip_address=ipaddr,
-                    )
-                ],
-                opts=ResourceOptions(delete_before_replace=True),
-            )
-
     def _provision_esxi_dns_recrods(self):
         for n in self.props.esxi_nodes:
             node_name, node_ip = n["name"], n["ip"]
             self._provision_dns_record("esxi-" + node_name, node_ip)
 
-    @resources_cache("esxi_servers")
-    def _provision_esxi_nodes(self):
-        """ esxi installation """
-        esxi_servers = {}
+    def _provision_esxi_servers(self):
         for n in self.props.esxi_nodes:
             node_name, node_id, node_ip = n["name"], n["id"], n["ip"]
-
             parent_port = networking.Port(
                 node_name + "-deployment",
                 network_id=self.resources.deploy_network.id,
             )
-
-            if n.get("image_name") is not None:
-                instance = compute.Instance(
-                    "esxi-" + node_name,
-                    name="esxi-" + node_name,
-                    availability_zone_hints=f"::{node_id}",
-                    flavor_id=self.props.esxi_flavor_id,
-                    image_name=n.get("image_name"),
-                    networks=[compute.InstanceNetworkArgs(port=parent_port.id)],
-                    key_pair=self.key_pair.name,
-                    opts=ResourceOptions(
-                        delete_before_replace=True, ignore_changes=["image_name"]
-                    ),
-                )
-            else:
-                instance = compute.Instance(
-                    "esxi-" + node_name,
-                    name="esxi-" + node_name,
-                    availability_zone_hints=f"::{node_id}",
-                    flavor_id=self.props.esxi_flavor_id,
-                    image_name=self.props.esxi_image,
-                    networks=[compute.InstanceNetworkArgs(port=parent_port.id)],
-                    key_pair=self.key_pair.name,
-                    opts=ResourceOptions(
-                        delete_before_replace=True, ignore_changes=["image_name"]
-                    ),
-                )
-
-            esxi_servers[node_name] = instance
-
+            instance = compute.Instance(
+                "esxi-" + node_name,
+                name="esxi-" + node_name,
+                availability_zone_hints=f"::{node_id}",
+                flavor_id=self.props.esxi_flavor_id,
+                image_name=self.props.esxi_image,
+                networks=[compute.InstanceNetworkArgs(port=parent_port.id)],
+                key_pair=self.key_pair.name,
+                opts=ResourceOptions(
+                    delete_before_replace=True, ignore_changes=["image_name"]
+                ),
+            )
             subport_vmotion = networking.Port(
                 node_name + "-vmotion",
                 admin_state_up=True,
@@ -256,8 +210,6 @@ class ManagementStack(VCFStack):
             )
 
             self._configure_esxi_node(instance, node_name, node_ip)
-
-        return esxi_servers
 
     def _configure_esxi_node(self, instance, node_name, node_ip):
         # set password
