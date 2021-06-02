@@ -149,11 +149,13 @@ func (m *Manager) ReloadConfigs() (created, updated, stopped map[string]error, e
 		if _, ok := newfiles[fname]; !ok {
 			stopped[fname] = nil
 			c.stop()
-			m.controllers[fname] = nil
+			logger.Infof("%s stopped", fname)
+			delete(m.controllers, fname)
 		}
 	}
 	return
 }
+
 func (c *StackController) start() {
 	if c.updCh == nil {
 		c.updCh = make(chan bool)
