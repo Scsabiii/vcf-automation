@@ -221,14 +221,6 @@ func (c *Controller) ConfigureStack(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = c.readKeypair(path.Join(path.Dir(c.configFilePath), ".ssh"))
-	if err != nil {
-		return err
-	}
-	err = configureKeypair(ctx, c.stack, c.Config.Props.Keypair)
-	if err != nil {
-		return err
-	}
 	err = configureStackProps(ctx, c.stack, c.Config)
 	if err != nil {
 		return err
@@ -297,22 +289,6 @@ func configureOpenstackProps(ctx context.Context, s Stack, p OpenstackProps) err
 		"openstack:password":          configSecret(osPassword),
 	}
 	return s.SetAllConfig(ctx, c)
-}
-
-// config key pair
-func configureKeypair(ctx context.Context, s Stack, kp Keypair) error {
-	if kp.publicKey == "" || kp.privateKey == "" {
-		return ErrKeypairNotSet
-	}
-	err := s.SetConfig(ctx, "publicKey", configValue(kp.publicKey))
-	if err != nil {
-		return err
-	}
-	err = s.SetConfig(ctx, "privateKey", configSecret(kp.privateKey))
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // configure stack props

@@ -36,15 +36,13 @@ type StackState struct {
 }
 
 type StackProps struct {
-	SharedProps        SharedProps      `yaml:"shared"`
 	EsxiServerImage    string           `yaml:"esxiServerImage"`
 	EsxiServerFlavorID string           `yaml:"esxiServerFlavorID"`
 	EsxiNodes          []EsxiNode       `yaml:"esxiNodes"`
 	PrivateNetworks    []PrivateNetwork `yaml:"privateNetworks"`
 	ReservedIPs        []RerservedIP    `yaml:"reservedIPs"`
-}
 
-type SharedProps struct {
+	// shared props
 	ExternalNetwork    ExternalNetwork   `yaml:"externalNetwork"`
 	ManagementNetwork  MgmtNetwork       `yaml:"managementNetwork"`
 	DeploymentNetwork  DeploymentNetwork `yaml:"deploymentNetwork"`
@@ -52,6 +50,7 @@ type SharedProps struct {
 	DNSZoneName        string            `yaml:"dnsZoneName"`
 	ReverseDNSZoneName string            `yaml:"reverseDnsZoneName"`
 	HelperVM           HelperVM          `yaml:"helperVM"`
+	KeypairFile        KeypairFile       `yaml:"keypairFile"`
 }
 
 type ExternalNetwork struct {
@@ -75,6 +74,18 @@ type DeploymentNetwork struct {
 	Gateway     string `yaml:"gatewayIP" json:"gateway_ip,omitempty"`
 }
 
+type HelperVM struct {
+	FlavorID   string `yaml:"flavorID" json:"flavor_id,omitempty"`
+	FlavorName string `yaml:"flavorName" json:"flavor_name,omitempty"`
+	ImageName  string `yaml:"imageName" json:"image_name,omitempty"`
+	IP         string `yaml:"ip" json:"ip,omitempty"`
+}
+
+type KeypairFile struct {
+	PublicKey  string `json:"public_key,omitempty" yaml:"publicKey"`
+	PrivateKey string `json:"private_key,omitempty" yaml:"privateKey"`
+}
+
 type PrivateNetwork struct {
 	NetworkName   string `yaml:"networkName" json:"name,omitempty"`
 	CIDR          string `yaml:"cidr" json:"cidr,omitempty"`
@@ -87,13 +98,6 @@ type EsxiNode struct {
 	ID        string `yaml:"id" json:"id,omitempty"`
 	IP        string `yaml:"ip" json:"ip,omitempty"`
 	ImageName string `yaml:"imageName" json:"image_name,omitempty"`
-}
-
-type HelperVM struct {
-	FlavorID   string `yaml:"flavorID" json:"flavor_id,omitempty"`
-	FlavorName string `yaml:"flavorName" json:"flavor_name,omitempty"`
-	ImageName  string `yaml:"imageName" json:"image_name,omitempty"`
-	IP         string `yaml:"ip" json:"ip,omitempty"`
 }
 
 type RerservedIP struct {
@@ -115,42 +119,48 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 		mergo.Merge(&p, q)
 	}
 	// p := mergeProps()
-	if (p.SharedProps.ExternalNetwork != ExternalNetwork{}) {
-		if en, err := json.Marshal(p.SharedProps.ExternalNetwork); err != nil {
+	if (p.ExternalNetwork != ExternalNetwork{}) {
+		if en, err := json.Marshal(p.ExternalNetwork); err != nil {
 			return err
 		} else {
 			s.SetConfig(ctx, "externalNetwork", auto.ConfigValue{Value: string(en)})
 		}
 	}
-	if (p.SharedProps.ManagementNetwork != MgmtNetwork{}) {
-		if mn, err := json.Marshal(p.SharedProps.ManagementNetwork); err != nil {
+	if (p.ManagementNetwork != MgmtNetwork{}) {
+		if mn, err := json.Marshal(p.ManagementNetwork); err != nil {
 			return err
 		} else {
 			s.SetConfig(ctx, "managementNetwork", auto.ConfigValue{Value: string(mn)})
 		}
 	}
-	if (p.SharedProps.DeploymentNetwork != DeploymentNetwork{}) {
-		if dn, err := json.Marshal(p.SharedProps.DeploymentNetwork); err != nil {
+	if (p.DeploymentNetwork != DeploymentNetwork{}) {
+		if dn, err := json.Marshal(p.DeploymentNetwork); err != nil {
 			return err
 		} else {
 			s.SetConfig(ctx, "deploymentNetwork", auto.ConfigValue{Value: string(dn)})
 		}
 	}
-	if (p.SharedProps.HelperVM != HelperVM{}) {
-		if n, err := json.Marshal(p.SharedProps.HelperVM); err != nil {
+	if (p.HelperVM != HelperVM{}) {
+		if n, err := json.Marshal(p.HelperVM); err != nil {
 			return err
 		} else {
 			s.SetConfig(ctx, "helperVM", auto.ConfigValue{Value: string(n)})
 		}
 	}
-	if p.SharedProps.DNSZoneName != "" {
-		s.SetConfig(ctx, "dnsZoneName", auto.ConfigValue{Value: p.SharedProps.DNSZoneName})
+	if p.DNSZoneName != "" {
+		s.SetConfig(ctx, "dnsZoneName", auto.ConfigValue{Value: p.DNSZoneName})
 	}
-	if p.SharedProps.ReverseDNSZoneName != "" {
-		s.SetConfig(ctx, "reverseDnsZoneName", auto.ConfigValue{Value: p.SharedProps.ReverseDNSZoneName})
+	if p.ReverseDNSZoneName != "" {
+		s.SetConfig(ctx, "reverseDnsZoneName", auto.ConfigValue{Value: p.ReverseDNSZoneName})
 	}
-	if p.SharedProps.PublicRouter != "" {
-		s.SetConfig(ctx, "publicRouter", auto.ConfigValue{Value: p.SharedProps.PublicRouter})
+	if p.PublicRouter != "" {
+		s.SetConfig(ctx, "publicRouter", auto.ConfigValue{Value: p.PublicRouter})
+	}
+	if p.KeypairFile.PublicKey != "" {
+		s.SetConfig(ctx, "publicKeyFile", auto.ConfigValue{Value: p.KeypairFile.PublicKey})
+	}
+	if p.KeypairFile.PrivateKey != "" {
+		s.SetConfig(ctx, "privateKeyFile", auto.ConfigValue{Value: p.KeypairFile.PrivateKey})
 	}
 	if p.PrivateNetworks != nil {
 		if pn, err := json.Marshal(p.PrivateNetworks); err != nil {

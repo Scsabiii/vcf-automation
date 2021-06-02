@@ -140,22 +140,6 @@ func writeConfig(fpath string, c *Config, overwrite bool) error {
 	return ioutil.WriteFile(fpath, b, 0644)
 }
 
-func (c *Config) readKeypair(fpath string) error {
-	publicKeyPath := path.Join(fpath, "id_rsa.pub")
-	privateKeyPath := path.Join(fpath, "id_rsa")
-	if b, err := ioutil.ReadFile(publicKeyPath); err != nil {
-		return err
-	} else {
-		c.Props.Keypair.publicKey = string(b)
-	}
-	if b, err := ioutil.ReadFile(privateKeyPath); err != nil {
-		return err
-	} else {
-		c.Props.Keypair.privateKey = "\n" + string(b)
-	}
-	return nil
-}
-
 // MergeStackPropsToConfig merges the Props.StackProps field from s into Config c.
 // NOTE: only EsxiStackProps.Nodes and EsxiStackProps.Shares are merged
 func MergeStackPropsToConfig(c *Config, s StackProps) (*Config, error) {
