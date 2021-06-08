@@ -272,11 +272,11 @@ func configureOpenstackProps(ctx context.Context, s Stack, p OpenstackProps) err
 	osAuthURL := fmt.Sprintf("https://identity-3.%s.cloud.sap/v3", p.Region)
 	osUsername := viper.GetString("os_username")
 	if osUsername == "" {
-		return fmt.Errorf("env variable CCMAAS_OS_USERNAME not configured")
+		return fmt.Errorf("env variable AUTOMATION_OS_USERNAME not configured")
 	}
 	osPassword := viper.GetString("os_password")
 	if osPassword == "" {
-		return fmt.Errorf("env variable CCMAAS_OS_PASSWORD not configured")
+		return fmt.Errorf("env variable AUTOMATION_OS_PASSWORD not configured")
 	}
 	c := auto.ConfigMap{
 		"openstack:authUrl":           configValue(osAuthURL),

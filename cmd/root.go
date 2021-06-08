@@ -29,11 +29,11 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "cci-operator",
-	Short: "cci operator",
-	Long: `cci operator:
+	Use:   "autmoation",
+	Short: "vcf automation",
+	Long: `automation:
 
-deploy CCI project with pulumi`,
+deploy VCF project with pulumi`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
