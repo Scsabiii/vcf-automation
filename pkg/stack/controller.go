@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ type Controller struct {
 	projectPath    string
 	projectRoot    string
 	stack          Stack
+	stackName      string
 	configured     bool
 	err            error
 	mu             sync.Mutex
@@ -33,11 +35,13 @@ func NewControllerFromConfigFile(projectRootDirectory, configFile string) (*Cont
 	if err != nil {
 		return nil, err
 	}
+	projectName, stackName := getProjectStackName(cfg)
 	l := Controller{
 		projectRoot:    projectRootDirectory,
-		projectPath:    path.Join(projectRootDirectory, string(cfg.Project)),
+		projectPath:    path.Join(projectRootDirectory, projectName),
 		configFilePath: configFile,
 		Config:         cfg,
+		stackName:      stackName,
 	}
 	err = l.Validate()
 	if err != nil {
@@ -46,12 +50,23 @@ func NewControllerFromConfigFile(projectRootDirectory, configFile string) (*Cont
 	return &l, nil
 }
 
+func getProjectStackName(cfg *Config) (projectName, stackName string) {
+	p := strings.Split(string(cfg.ProjectType), "/")
+	projectName = p[0]
+	if len(p) > 1 {
+		stackName = p[1] + "-" + cfg.Stack
+	} else {
+		stackName = cfg.Stack
+	}
+	return
+}
+
 func (c *Controller) ReloadConfig() error {
 	cfg, err := ReadConfig(c.configFilePath)
 	if err != nil {
 		return err
 	}
-	if cfg.Project != c.Project {
+	if cfg.ProjectType != c.ProjectType {
 		return fmt.Errorf("project does not match")
 	}
 	if cfg.Stack != c.Stack {
@@ -145,30 +160,6 @@ Forloop:
 		case <-ticker.C:
 		}
 	}
-}
-
-// UpdateConfig updates Props.StackProps field of the controller's Config with
-// the given Config s. The updated Config is written to the configuration file
-// on disk.
-func (l *Controller) UpdateConfig(s *Config) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.Config.Project != s.Project {
-		return fmt.Errorf("unmatched project")
-	}
-	if l.Config.Stack != s.Stack {
-		return fmt.Errorf("unmatched stack")
-	}
-	nc, err := MergeStackPropsToConfig(l.Config, s.Props.StackProps)
-	if err != nil {
-		return err
-	}
-	err = WriteConfig(l.configFilePath, nc)
-	if err != nil {
-		return err
-	}
-	l.Config = nc
-	return nil
 }
 
 // RuntimeError returns error thrown when refresh/update/destroy stack
