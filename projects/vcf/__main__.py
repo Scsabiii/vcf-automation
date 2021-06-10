@@ -18,18 +18,16 @@ from vcf import ManagementStack, SharedStack, WorkloadStack
 
 # stack
 stack_name = pulumi.get_stack()
-
-# read config
-config = pulumi.Config()
+stack_type = stack_name.split("-")[0]
 
 ###################################################################################
 # cloud admin provider
 ###################################################################################
 openstack_config = pulumi.Config("openstack")
-user_name = openstack_config.require("userName")
-password = openstack_config.require_secret("password")
 auth_url = openstack_config.require("authUrl")
 region = openstack_config.require("region")
+user_name = openstack_config.require("userName")
+password = openstack_config.require_secret("password")
 provider_cloud_admin = Provider(
     "cloud_admin",
     user_name=user_name,
@@ -53,31 +51,14 @@ provider_ccadmin_master = Provider(
 
 
 ###################################################################################
-# key pair
+# provision
 ###################################################################################
-public_key_file = config.require("publicKeyFile")
-with open(public_key_file) as f:
-    pk = f.read()
-    key_pair = compute.Keypair("rsa-keypair", public_key=pk)
-
-
-###################################################################################
-# public networks
-###################################################################################
-externalNetworkProps = json.loads(config.require("externalNetwork"))
-managementNetworkPorps = json.loads(config.require("managementNetwork"))
-
-if stack_name == "shared":
-    ss = SharedStack(key_pair, provider_cloud_admin)
-    ss.proivsion()
-    exit(0)
-
-if stack_name in ("management", "dev", "ap002"):
-    ms = ManagementStack(key_pair, provider_ccadmin_master)
+if stack_type == "management":
+    ms = ManagementStack(provider_cloud_admin, provider_ccadmin_master)
     ms.provision()
     exit(0)
 
-if stack_name == "workload":
-    ws = WorkloadStack(key_pair, provider_ccadmin_master)
+if stack_type == "workload":
+    ws = WorkloadStack(provider_cloud_admin, provider_ccadmin_master)
     ws.provision()
     exit(0)

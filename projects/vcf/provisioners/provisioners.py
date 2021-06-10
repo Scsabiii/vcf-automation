@@ -1,18 +1,20 @@
 # Copyright 2020, Pulumi Corporation.  All rights reserved.
 
 import abc
-import json
 import hashlib
 import io
-import paramiko
-import pulumi
-from pulumi import dynamic, Input, Output
-from pulumi.resource import Resource
+import json
+from random import random
 import socket
 import time
 from typing import Any, Optional
-from typing_extensions import TypedDict
 from uuid import uuid4
+
+import paramiko
+import pulumi
+from pulumi import Input, Output, dynamic
+from pulumi.resource import Resource
+from typing_extensions import TypedDict
 
 
 def sha256sum(filename):

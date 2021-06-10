@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import jinja2
 import pulumi
+from pulumi.output import Output
 from pulumi.resource import ResourceOptions
 from pulumi_openstack import compute, dns, networking
 
@@ -10,26 +11,22 @@ from provisioners import ConnectionArgs, CopyFile, CopyFileFromString, RemoteExe
 
 
 class SharedStack:
-    def __init__(self, key_pair, provider_cloud_admin):
+    def __init__(self, keypair_name, provider_cloud_admin):
         self.config = pulumi.Config()
         self.stack_name = pulumi.get_stack()
-        self.key_pair = key_pair
         self.provider_cloud_admin = provider_cloud_admin
+        self.keypair = compute.get_keypair(keypair_name)
 
-        public_key_file = (
-            self.config.get("publicKeyFile") or "/pulumi/automation/etc/.ssh/id_rsa.pub"
-        )
         private_key_file = (
             self.config.get("privateKeyFile") or "/pulumi/automation/etc/.ssh/id_rsa"
         )
-
         self.props = SimpleNamespace(
             external_network=json.loads(self.config.require("externalNetwork")),
             mgmt_network=json.loads(self.config.require("managementNetwork")),
             deploy_network=json.loads(self.config.require("deploymentNetwork")),
             helper_vm=json.loads(self.config.require("helperVM")),
             public_router_name=self.config.require("publicRouter"),
-            public_key_file=public_key_file,
+            keypair_name=keypair_name,
             private_key_file=private_key_file,
         )
         mgmt_network = networking.get_network(name=self.props.mgmt_network["name"])
@@ -68,19 +65,32 @@ class SharedStack:
             router_id=public_router.id,
             subnet_id=self.resources.mgmt_subnet.id,
             opts=ResourceOptions(
-                provider=self.provider_cloud_admin,
+                # provider=self.provider_cloud_admin,
                 delete_before_replace=True,
                 protect=protect,
             ),
         )
         networking.RouterInterface(
-            "router-interface-deployement",
+            "router-interface-deployment",
             router_id=public_router.id,
             subnet_id=deploy_subnet.id,
             opts=ResourceOptions(
-                provider=self.provider_cloud_admin,
+                # provider=self.provider_cloud_admin,
                 delete_before_replace=True,
                 protect=protect,
+            ),
+        )
+
+        pulumi.export(
+            "DeploymentNetwork",
+            Output.all(deploy_network.name, deploy_network.id).apply(
+                lambda args: f"{args[0]} ({args[1]})"
+            ),
+        )
+        pulumi.export(
+            "PublicRouter",
+            Output.all(public_router.name, public_router.id).apply(
+                lambda args: f"{args[0]} ({args[1]})"
             ),
         )
 
@@ -118,7 +128,7 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             networks=[
                 compute.InstanceNetworkArgs(name=self.props.deploy_network["name"]),
             ],
-            key_pair=self.key_pair.name,
+            key_pair=self.props.keypair_name,
             user_data=init_script,
             opts=ResourceOptions(
                 delete_before_replace=True,
@@ -189,3 +199,10 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
                 dest="/home/ccloud/config.sh",
                 opts=ResourceOptions(depends_on=[attach_external_ip]),
             )
+
+        pulumi.export(
+            "HelperVM",
+            Output.all(
+                helper_vm.name, helper_vm.id, external_port.all_fixed_ips[0]
+            ).apply(lambda args: f"{args[0]} ({args[1]}, {args[2]})"),
+        )
