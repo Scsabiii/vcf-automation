@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: ccmaas-workspace
+  name: vcf-workspace
   namespace: ccmaas
 spec:
   accessModes:

@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: vcf-automation-test
+  name: vcf-automation-ap002
   labels:
     app: vcf-automation
 spec:
   containers:
     - name: automation
-      image: keppel.eu-de-1.cloud.sap/ccloud/vcf-automation:latest
+      image: keppel.eu-de-1.cloud.sap/ccloud/vcf-automation:9a3110c-dirty
       command:
         - "/pulumi/bin/automation"
         - "server"
@@ -21,18 +21,13 @@ spec:
         - name: AUTOMATION_OS_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: vcf-secrets
+              name: ccmaas-pass
               key: os_password
         - name: AUTOMATION_OS_USERNAME
           valueFrom:
             secretKeyRef:
-              name: vcf-secrets
+              name: ccmaas-pass
               key: os_username
-        - name: AUTOMATION_VMWARE_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: vcf-secrets
-              key: vmware_password
         - name: AUTOMATION_WORK_DIR
           value: /pulumi/automation
         - name: AUTOMATION_PROJECT_ROOT
@@ -46,10 +41,10 @@ spec:
       volumeMounts:
         - mountPath: /pulumi/automation/etc
           subPath: etc
-          name: pvc
-        - mountPath: /pulumi/automation/etc2
-          subPath: etc
           name: oldpvc
+        - mountPath: /pulumi/automation/etc-new
+          subPath: etc
+          name: pvc
       ports:
         - containerPort: 8080
           name: api

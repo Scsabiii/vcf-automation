@@ -1,19 +1,19 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: avocado-automation
+  name: vcf-automation
 spec:
   selector:
     matchLabels:
-      app: avocado-automation
+      app: vcf-automation
   template:
     metadata:
       labels:
-        app: avocado-automation
+        app: vcf-automation
     spec:
       containers:
         - name: automation
-          image: keppel.eu-de-1.cloud.sap/ccloud/avocado-automation:latest
+          image: keppel.eu-de-1.cloud.sap/ccloud/vcf-automation:latest
           command:
             - "/pulumi/bin/automation"
             - "server"
@@ -21,21 +21,36 @@ spec:
             - name: PULUMI_CONFIG_PASSPHRASE
               value: pass4config
             - name: PULUMI_BACKEND_URL
-              value: file:///pulumi/avocado/etc
+              value: file:///pulumi/automation/etc
             - name: AUTOMATION_PORT
               value: "8080"
             - name: AUTOMATION_OS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: ccmaas-pass
+                  name: vcf-pass
                   key: os_password
             - name: AUTOMATION_OS_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: ccmaas-pass
+                  name: vcf-pass
                   key: os_username
+            - name: AUTOMATION_VMWARE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vcf-pass
+                  key: vmware_password
+            - name: AUTOMATION_WORK_DIR
+              value: /pulumi/automation
+            - name: AUTOMATION_PROJECT_ROOT
+              value: /pulumi/automation/projects
+            - name: AUTOMATION_CONFIG_DIR
+              value: /pulumi/automation/etc
+            - name: AUTOMATION_STATIC_PATH
+              value: /pulumi/automation/static
+            - name: AUTOMATION_TEMPLATE_PATH
+              value: /pulumi/automation/templates
           volumeMounts:
-            - mountPath: /pulumi/avocado/etc
+            - mountPath: /pulumi/automation/etc
               subPath: etc
               name: pvc
           ports:
@@ -44,4 +59,4 @@ spec:
       volumes:
         - name: pvc
           persistentVolumeClaim:
-            claimName: ccmaas-workspace
+            claimName: vcf-workspace
