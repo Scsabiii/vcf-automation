@@ -129,12 +129,6 @@ func printResources(res map[string][]Resource, resourceURN, prefix string) {
 	}
 }
 
-func (c *Controller) PrintStackResources() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	printStackResources(c.Stack)
-}
-
 func configValue(v string) auto.ConfigValue {
 	return auto.ConfigValue{Value: v}
 }

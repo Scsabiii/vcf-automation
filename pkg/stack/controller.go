@@ -70,13 +70,13 @@ func (c *Controller) ConfigFullName() string {
 }
 
 func (c *Controller) Validate() error {
-	switch c.Project {
-	case ProjectEsxi, ProjectExample, ProjectVCF:
+	switch c.ProjectType {
+	case ProjectEsxi, ProjectExample, ProjectVCFWorkload, ProjectVCFManagement:
 		if f, err := os.Stat(c.projectPath); err != nil || !f.IsDir() {
 			return fmt.Errorf("project directory does not exist: %s", c.projectPath)
 		}
 	default:
-		return fmt.Errorf("project not supported: %s", c.Project)
+		return fmt.Errorf("project not supported: %s", c.ProjectType)
 	}
 	return nil
 }
@@ -84,8 +84,8 @@ func (c *Controller) Validate() error {
 func (c *Controller) Run(updateCh <-chan bool, cancelCh <-chan bool) {
 	logger := log.WithFields(log.Fields{
 		"package": "stack",
-		"project": c.Project,
-		"stack":   c.Stack,
+		"project": c.ProjectType,
+		"stack":   c.stackName,
 	})
 	tickerDuration := 15 * time.Minute
 	ticker := time.NewTicker(tickerDuration)
@@ -179,28 +179,27 @@ func (c *Controller) RuntimeError() error {
 func (l *Controller) InitStack(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	switch ProjectType(l.Project) {
+	switch v := ProjectType(l.ProjectType); v {
 	case ProjectExample:
-		if s, err := InitExampleStack(ctx, l.Stack, l.projectPath); err != nil {
+		if s, err := InitExampleStack(ctx, l.stackName, l.projectPath); err != nil {
 			return err
 		} else {
 			l.stack = s
 		}
 	case ProjectEsxi:
-		s, err := esxi.InitEsxiStack(ctx, l.Stack, l.projectPath)
+		s, err := esxi.InitEsxiStack(ctx, l.stackName, l.projectPath)
 		if err != nil {
 			return err
 		}
 		l.stack = s
-	case ProjectVCF:
-		s, err := vcf.InitVCFStack(ctx, l.Stack, l.projectPath)
+	case ProjectVCFManagement, ProjectVCFWorkload:
+		s, err := vcf.InitVCFStack(ctx, l.stackName, l.projectPath)
 		if err != nil {
 			return err
 		}
 		l.stack = s
-
 	default:
-		return fmt.Errorf("project %q: %v", l.Project, ErrNotSupported)
+		return fmt.Errorf("project %q: %v", l.ProjectType, ErrNotSupported)
 	}
 
 	return nil
@@ -293,7 +292,7 @@ func configureOpenstackProps(ctx context.Context, s Stack, p OpenstackProps) err
 
 // configure stack props
 func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
-	switch ProjectType(cfg.Project) {
+	switch v := ProjectType(cfg.ProjectType); v {
 	case ProjectExample:
 	case ProjectEsxi:
 		stackProps := append([]StackProps{cfg.Props.StackProps}, cfg.Props.BaseStackProps...)
@@ -306,7 +305,7 @@ func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
 		if err != nil {
 			return err
 		}
-	case ProjectVCF:
+	case ProjectVCFManagement, ProjectVCFWorkload:
 		stackProps := append([]StackProps{cfg.Props.StackProps}, cfg.Props.BaseStackProps...)
 		props := make([]vcf.StackProps, len(stackProps))
 		err := unmarshalStackPropList(stackProps, &props)
@@ -319,4 +318,10 @@ func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
 		}
 	}
 	return nil
+}
+
+func (c *Controller) PrintStackResources() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	printStackResources(c.stackName)
 }

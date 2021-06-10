@@ -29,17 +29,18 @@ import (
 )
 
 const (
-	ProjectEsxi    ProjectType = "esxi"
-	ProjectExample ProjectType = "example-go"
-	ProjectVCF     ProjectType = "vcf"
+	ProjectEsxi          ProjectType = "esxi"
+	ProjectExample       ProjectType = "example-go"
+	ProjectVCFManagement ProjectType = "vcf/management"
+	ProjectVCFWorkload   ProjectType = "vcf/workload"
 )
 
 // Config is configuration of project/stack
 type Config struct {
-	Project   ProjectType `json:"project" yaml:"project"`
-	Stack     string      `json:"stack" yaml:"stack"`
-	Props     Props       `json:"props" yaml:"props"`
-	DependsOn []string    `json:"depends_on,omitempty" yaml:"dependsOn"`
+	ProjectType ProjectType `json:"project_type" yaml:"projectType"`
+	Stack       string      `json:"stack" yaml:"stack"`
+	Props       Props       `json:"props" yaml:"props"`
+	DependsOn   []string    `json:"depends_on,omitempty" yaml:"dependsOn"`
 }
 
 // ProjectType is project type
@@ -94,7 +95,7 @@ func ReadConfig(configFile string) (*Config, error) {
 }
 
 func (c *Config) validate() error {
-	if c.Project == "" {
+	if c.ProjectType == "" {
 		return fmt.Errorf("project not set")
 	}
 	if c.Stack == "" {
@@ -123,7 +124,7 @@ func writeConfig(fpath string, c *Config, overwrite bool) error {
 	// Need to unmarshal the field Props.StackProps, of type interface{}, to
 	// the actual structure it has. Otherwise it is serialized into a raw
 	// string
-	switch c.Project {
+	switch c.ProjectType {
 	case ProjectEsxi:
 		p := esxi.StackProps{}
 		err := unmarshalStackProps(c.Props.StackProps, &p)
@@ -145,7 +146,7 @@ func writeConfig(fpath string, c *Config, overwrite bool) error {
 func MergeStackPropsToConfig(c *Config, s StackProps) (*Config, error) {
 	// deep copy old config to nc
 	nc := *c
-	switch nc.Project {
+	switch nc.ProjectType {
 	case ProjectEsxi:
 		p := esxi.StackProps{}
 		err := unmarshalStackProps(c.Props.StackProps, &p)

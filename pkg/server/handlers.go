@@ -111,7 +111,7 @@ func startStack(w http.ResponseWriter, r *http.Request) {
 	} else {
 		c.start()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprintf("stack %s-%s started\n", c.Project, c.Stack)))
+		w.Write([]byte(fmt.Sprintf("stack %s-%s started\n", c.ProjectType, c.Stack)))
 	}
 }
 
@@ -123,7 +123,7 @@ func stopStack(w http.ResponseWriter, r *http.Request) {
 	}
 	c.stop()
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("stack %s-%s stopped\n", c.Project, c.Stack)))
+	w.Write([]byte(fmt.Sprintf("stack %s-%s stopped\n", c.ProjectType, c.Stack)))
 }
 
 func reloadStack(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +139,7 @@ func reloadStack(w http.ResponseWriter, r *http.Request) {
 	}
 	nc.triggerUpdateStack()
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("stack %s-%s reloaded\n", c.Project, c.Stack)))
+	w.Write([]byte(fmt.Sprintf("stack %s-%s reloaded\n", c.ProjectType, c.Stack)))
 }
 
 func stacks(w http.ResponseWriter, r *http.Request) {
