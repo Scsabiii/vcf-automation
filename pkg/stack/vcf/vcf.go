@@ -36,11 +36,13 @@ type StackState struct {
 }
 
 type StackProps struct {
+	// prviate props
 	EsxiServerImage    string           `yaml:"esxiServerImage"`
 	EsxiServerFlavorID string           `yaml:"esxiServerFlavorID"`
 	EsxiNodes          []EsxiNode       `yaml:"esxiNodes"`
 	PrivateNetworks    []PrivateNetwork `yaml:"privateNetworks"`
 	ReservedIPs        []RerservedIP    `yaml:"reservedIPs"`
+	Shares             []Share          `yaml:"shares"`
 
 	// shared props
 	ExternalNetwork    ExternalNetwork   `yaml:"externalNetwork"`
@@ -105,6 +107,11 @@ type RerservedIP struct {
 	Name string `yaml:"name" json:"name,omitempty"`
 }
 
+type Share struct {
+	ShareName string `yaml:"shareName" json:"share_name,omitempty"`
+	ShareSize int    `yaml:"shareSize" json:"share_size,omitempty"`
+}
+
 func InitVCFStack(ctx context.Context, stackName, projectDir string) (*Stack, error) {
 	s, err := auto.UpsertStackLocalSource(ctx, stackName, projectDir)
 	if err != nil {
@@ -118,7 +125,6 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 	for _, q := range props[1:] {
 		mergo.Merge(&p, q)
 	}
-	// p := mergeProps()
 	if (p.ExternalNetwork != ExternalNetwork{}) {
 		if en, err := json.Marshal(p.ExternalNetwork); err != nil {
 			return err
@@ -188,6 +194,13 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 	}
 	if p.EsxiServerFlavorID != "" {
 		s.SetConfig(ctx, "esxiServerFlavorID", auto.ConfigValue{Value: p.EsxiServerFlavorID})
+	}
+	if p.Shares != nil {
+		if n, err := json.Marshal(p.Shares); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "shares", auto.ConfigValue{Value: string(n)})
+		}
 	}
 	return nil
 }
