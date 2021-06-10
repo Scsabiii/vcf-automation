@@ -29,10 +29,14 @@ import (
 )
 
 var configureCmd = &cobra.Command{
-	Use:   "configure [projectName/stackName]",
-	Short: "configure project/stack",
-	Long:  `Read automation's yaml configuration file and generate pulumi project/stack's config file`,
-	Args:  cobra.MinimumNArgs(1),
+	Use:   "configure <config_file_name>",
+	Short: "Configure project/stack",
+	Long: `automation configure:
+
+Read automation's yaml configuration file and generate pulumi project/stack's
+config file. <config_file_name> is the configuration file's name (without .yaml
+extension) with respect to the default configuration directory.`,
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
 		workdir := viper.GetString("work_dir")
@@ -44,8 +48,7 @@ var configureCmd = &cobra.Command{
 		if configdir == "" {
 			configdir = path.Join(workdir, "etc")
 		}
-		projectName, stackName := extractProjectStack(args)
-		fname := fmt.Sprintf("%s-%s.yaml", projectName, stackName)
+		fname := args[0] + ".yaml"
 		fpath := path.Join(configdir, fname)
 		c, err := stack.NewControllerFromConfigFile(projectRoot, fpath)
 		if err != nil {
@@ -59,7 +62,7 @@ var configureCmd = &cobra.Command{
 		if err != nil {
 			logErrorAndExit(err)
 		}
-		fmt.Printf("successfully configured the stack %s in project %s\n", stackName, projectName)
+		fmt.Printf("successfully configured the stack %s in project %s\n", c.Stack, c.ProjectType)
 	},
 }
 
