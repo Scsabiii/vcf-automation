@@ -21,7 +21,7 @@ stack_name = pulumi.get_stack()
 stack_type = stack_name.split("-")[0]
 
 ###################################################################################
-# cloud admin provider
+# ccadmin/cloud_admin and ccadmin/master provider
 ###################################################################################
 openstack_config = pulumi.Config("openstack")
 auth_url = openstack_config.require("authUrl")

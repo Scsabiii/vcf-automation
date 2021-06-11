@@ -25,10 +25,9 @@ class ManagementStack(VCFStack):
         self._provision_private_router()
         self._provision_private_networks()
         self._provision_reserved_names()
-        # self._provision_esxi_dns_recrods()
+        self._provision_esxi_dns_recrods()
+        self._provision_shares()
 
         self._provision_esxi_servers()
-        # for s in self.resources.esxi_servers:
-        #     self._configure_esxi_server(s)
-
-        self._provision_shares()
+        for s in self.resources.esxi_servers:
+            self._configure_esxi_server(s)

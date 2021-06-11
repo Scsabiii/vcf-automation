@@ -80,6 +80,18 @@ class VCFStack:
             mgmt_network=mgmt_network,
             mgmt_subnet=mgmt_subnet,
         )
+        pulumi.export(
+            "ManagementNetwork",
+            Output.all(mgmt_network.name, mgmt_network.id).apply(
+                lambda args: "{name} ({_id})".format(name=args[0], _id=args[1])
+            ),
+        )
+        pulumi.export(
+            "ManagementSubnet",
+            Output.all(mgmt_subnet.name, mgmt_subnet.id).apply(
+                lambda args: "{name} ({_id})".format(name=args[0], _id=args[1])
+            ),
+        )
 
     def provision(self):
         self._provision_keypair()
@@ -135,7 +147,6 @@ class VCFStack:
             router_id=public_router.id,
             subnet_id=self.resources.mgmt_subnet.id,
             opts=ResourceOptions(
-                provider=self.provider_cloud_admin,
                 delete_before_replace=True,
                 protect=protect,
             ),
@@ -195,7 +206,7 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             user_data=init_script,
             opts=ResourceOptions(
                 delete_before_replace=True,
-                ignore_changes=["image_name"],
+                ignore_changes=["image_name", "key_pair"],
             ),
         )
         attach_external_ip = compute.InterfaceAttach(
@@ -331,7 +342,8 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
                 networks=[compute.InstanceNetworkArgs(port=parent_port.id)],
                 key_pair=self.resources.keypair.name,
                 opts=ResourceOptions(
-                    delete_before_replace=True, ignore_changes=["image_name"]
+                    delete_before_replace=True,
+                    ignore_changes=["image_name", "key_pair"],
                 ),
             )
             esxi_servers.append(
