@@ -1,17 +1,4 @@
-import json
-
-import pulumi
-from pulumi import resource
-from pulumi.config import ConfigMissingError
-from pulumi.output import Output
-from pulumi.resource import ResourceOptions
-from pulumi.stack_reference import StackReference
-from pulumi_openstack import Provider, compute, dns, networking
-from pulumi_openstack.compute import keypair
-
-from provisioners import ConnectionArgs, RemoteExec
-
-from .vcf_stack import VCFStack, resources_cache
+from .vcf_stack import VCFStack
 
 
 class ManagementStack(VCFStack):

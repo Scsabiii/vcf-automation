@@ -551,7 +551,7 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             zone_id=dns_zone.id,
             opts=ResourceOptions(delete_before_replace=True),
         )
-        rr = dns.RecordSet(
+        dns.RecordSet(
             "reverse-" + dns_name,
             name=ipaddr.split(".")[-1] + "." + self.props.reverse_dns_zone_name,
             records=[dns_name],

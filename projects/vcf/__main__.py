@@ -1,19 +1,9 @@
 """An OpenStack Python Pulumi program"""
 
-import datetime
-from types import MappingProxyType
-from jinja2 import Template
-import json
 import pulumi
-from pulumi.output import Output
-from pulumi.resource import ResourceOptions
-from pulumi_openstack import Provider, provider
-from pulumi_openstack import compute, networking, dns
-from pulumi_openstack.networking.get_network import get_network
-from pulumi_openstack.networking.get_subnet import get_subnet
+from pulumi_openstack import Provider
 
-
-from vcf import ManagementStack, SharedStack, WorkloadStack
+from vcf import ManagementStack, WorkloadStack
 
 
 # stack
