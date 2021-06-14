@@ -205,6 +205,10 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 	return nil
 }
 
+func (s *Stack) ConfigureVMwarePassword(ctx context.Context, p string) error {
+	return s.SetConfig(ctx, "vmwarePassword", auto.ConfigValue{Value: p})
+}
+
 func (s *Stack) Refresh(ctx context.Context) error {
 	_, err := s.Stack.Refresh(ctx)
 	if err != nil {

@@ -9,7 +9,7 @@ param (
 
 $ErrorActionPreference = 'Stop'
 
-$esxiserver = Connect-VIServer -Server $LocalIP -User root -Password VMware1!VMware1!
+$esxiserver = Connect-VIServer -Server $LocalIP -User root -Password {{ vmware_password }}
 $esxcli = Get-EsxCli -VMhost (Get-VMHost $esxiserver) -V2
 try {
     $esxcli.system.maintenanceMode.set.Invoke(@{enable=$true})

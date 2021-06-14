@@ -307,6 +307,11 @@ func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
 		if err != nil {
 			return err
 		}
+		password := viper.GetString("vmware_password")
+		err = s.(*vcf.Stack).ConfigureVMwarePassword(ctx, password)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

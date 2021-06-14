@@ -35,14 +35,25 @@ class VCFStack:
         self.provider_cloud_admin = provider_cloud_admin
         self.provider_ccadmin_master = provider_ccadmin_master
 
+        public_key_file = (
+            self.config.get("publicKeyFile") or "/pulumi/automation/etc/.ssh/id_rsa.pub"
+        )
+        private_key_file = (
+            self.config.get("privateKeyFile") or "/pulumi/automation/etc/.ssh/id_rsa"
+        )
+
         try:
             private_networks = json.loads(self.config.require("privateNetworks"))
         except ConfigMissingError:
             private_networks = []
         try:
             esxi_nodes = json.loads(self.config.require("esxiNodes"))
+            esxi_image_name = self.config.require("esxiServerImage")
+            esxi_flavor_id = self.config.require("esxiServerFlavorID")
         except ConfigMissingError:
             esxi_nodes = []
+            esxi_image_name = ""
+            esxi_flavor_id = ""
         try:
             shares = json.loads(self.config.require("shares"))
         except ConfigMissingError:
@@ -51,28 +62,27 @@ class VCFStack:
             reserved_ips = json.loads(self.config.require("reservedIPs"))
         except ConfigMissingError:
             reserved_ips = []
-        public_key_file = (
-            self.config.get("publicKeyFile") or "/pulumi/automation/etc/.ssh/id_rsa.pub"
-        )
-        private_key_file = (
-            self.config.get("privateKeyFile") or "/pulumi/automation/etc/.ssh/id_rsa"
-        )
+
         self.props = SimpleNamespace(
+            helper_vm=json.loads(self.config.require("helperVM")),
+            public_key_file=public_key_file,
+            private_key_file=private_key_file,
+            vmware_password=self.config.require("vmwarePassword"),
+            # networks
             external_network=json.loads(self.config.require("externalNetwork")),
             mgmt_network=json.loads(self.config.require("managementNetwork")),
             deploy_network=json.loads(self.config.require("deploymentNetwork")),
-            dns_zone_name=self.config.require("dnsZoneName"),
-            reverse_dns_zone_name=self.config.require("reverseDnsZoneName"),
-            helper_vm=json.loads(self.config.require("helperVM")),
             public_router_name=self.config.require("publicRouter"),
             private_networks=private_networks,
+            # ips and dns names
+            dns_zone_name=self.config.require("dnsZoneName"),
+            reverse_dns_zone_name=self.config.require("reverseDnsZoneName"),
+            reserved_ips=reserved_ips,
+            # esxi servers
+            esxi_image=esxi_image_name,
+            esxi_flavor_id=esxi_flavor_id,
             esxi_nodes=esxi_nodes,
             shares=shares,
-            reserved_ips=reserved_ips,
-            esxi_image=self.config.get("esxiServerImage"),
-            esxi_flavor_id=self.config.get("esxiServerFlavorID"),
-            public_key_file=public_key_file,
-            private_key_file=private_key_file,
         )
         mgmt_network = networking.get_network(name=self.props.mgmt_network["name"])
         mgmt_subnet = networking.get_subnet(name=self.props.mgmt_network["subnet_name"])
@@ -274,6 +284,7 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             template = jinja2.Template(f.read())
             config_script = template.render(
                 management_network=self.props.mgmt_network,
+                vmware_password=self.props.vmware_password,
             )
             copy_config_sh = CopyFileFromString(
                 "copy-config-sh",
@@ -474,8 +485,8 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
         command_set_passwd = server.access_ip_v4.apply(
             lambda local_ip: (
                 "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "
-                "-i /home/ccloud/esxi_rsa root@{} 'echo VMware1!VMware1! | passwd --stdin root'"
-            ).format(local_ip)
+                "-i /home/ccloud/esxi_rsa root@{0} 'echo {1} | passwd --stdin root'"
+            ).format(local_ip, self.props.vmware_password)
         )
         # config node
         command_config = server.access_ip_v4.apply(
