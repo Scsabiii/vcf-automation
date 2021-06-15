@@ -62,11 +62,19 @@ class VCFStack:
             reserved_ips = json.loads(self.config.require("reservedIPs"))
         except ConfigMissingError:
             reserved_ips = []
+        try:
+            nsxt_managers=json.loads(self.config.require("nsxtManagers"))
+        except ConfigMissingError:
+            nsxt_managers = []
 
         self.props = SimpleNamespace(
             helper_vm=json.loads(self.config.require("helperVM")),
             public_key_file=public_key_file,
             private_key_file=private_key_file,
+            nsxt=self.config.require("nsxt"),
+            nsxt_managers=nsxt_managers,
+            sddc_manager=self.config.require("sddcManager"),
+            vcenter=self.config.require("vcenter"),
             vmware_password=self.config.require("vmwarePassword"),
             # networks
             external_network=json.loads(self.config.require("externalNetwork")),
@@ -615,3 +623,17 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
                 share_proto="NFS",
                 size=share_size,
             )
+
+    def _gen_cloud_builder_json(self):
+        with open("./scripts/cloud-builder.json.tpl") as f:
+            template = jinja2.Template(f.read())
+            cbj = template.render(
+                esxi_servers=self.props.esxi_nodes,
+                management_network=self.props.mgmt_network,
+                nsxt=self.props.nsxt,
+                nsxt_managers=self.props.nsxt_managers,
+                sddc_manager=self.props.sddc_manager,
+                vcenter=self.props.vcenter,
+                vmware_password=self.props.vmware_password,
+            )
+            pulumi.export("cloud-builder.json", cbj)

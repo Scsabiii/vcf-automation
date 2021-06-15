@@ -36,15 +36,17 @@ type StackState struct {
 }
 
 type StackProps struct {
-	// prviate props
 	EsxiServerImage    string           `yaml:"esxiServerImage"`
 	EsxiServerFlavorID string           `yaml:"esxiServerFlavorID"`
 	EsxiNodes          []EsxiNode       `yaml:"esxiNodes"`
 	PrivateNetworks    []PrivateNetwork `yaml:"privateNetworks"`
 	ReservedIPs        []RerservedIP    `yaml:"reservedIPs"`
 	Shares             []Share          `yaml:"shares"`
+	SDDCManager        SDDCManager      `yaml:"sddcManager"`
+	Nsxt               Nsxt             `yaml:"nsxt"`
+	NsxtManagers       []NsxtManager    `yaml:"nsxtManagers"`
+	VCenter            VCenter          `yaml:"vcenter"`
 
-	// shared props
 	ExternalNetwork    ExternalNetwork   `yaml:"externalNetwork"`
 	ManagementNetwork  MgmtNetwork       `yaml:"managementNetwork"`
 	DeploymentNetwork  DeploymentNetwork `yaml:"deploymentNetwork"`
@@ -65,6 +67,7 @@ type MgmtNetwork struct {
 	SubnetName    string `yaml:"subnetName" json:"subnet_name,omitempty"`
 	SubnetGateway string `yaml:"subnetGateway" json:"subnet_gateway,omitempty"`
 	SubnetMask    string `yaml:"subnetMask" json:"subnet_mask,omitempty"`
+	SubnetCidr    string `yaml:"subnetCidr" json:"subnet_cidr,omitempty"`
 	VlanID        int    `yaml:"vlanID" json:"vlan_id,omitempty"`
 	EsxiInterface string `yaml:"esxiInterface" json:"esxi_interface,omitempty"`
 }
@@ -110,6 +113,30 @@ type RerservedIP struct {
 type Share struct {
 	ShareName string `yaml:"shareName" json:"share_name,omitempty"`
 	ShareSize int    `yaml:"shareSize" json:"share_size,omitempty"`
+}
+
+type SDDCManager struct {
+	ID         string `yaml:"id" json:"id"`
+	IP         string `yaml:"ip" json:"ip"`
+	Hostname   string `yaml:"hostname" json:"hostname"`
+	Domain     string `yaml:"domain" json:"domain"`
+	EsxLicense string `yaml:"esxLicense" json:"esx_license"`
+}
+
+type Nsxt struct {
+	IP       string `yaml:"ip" json:"ip,omitempty"`
+	Hostname string `yaml:"hostname" json:"hostname,omitempty"`
+	License  string `yaml:"license" json:"license,omitempty"`
+}
+
+type NsxtManager struct {
+	IP       string `yaml:"ip" json:"ip,omitempty"`
+	Hostname string `yaml:"hostname" json:"hostname,omitempty"`
+}
+
+type VCenter struct {
+	IP       string `yaml:"ip" json:"ip,omitempty"`
+	Hostname string `yaml:"hostname" json:"hostname,omitempty"`
 }
 
 func InitVCFStack(ctx context.Context, stackName, projectDir string) (*Stack, error) {
@@ -200,6 +227,34 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 			return err
 		} else {
 			s.SetConfig(ctx, "shares", auto.ConfigValue{Value: string(n)})
+		}
+	}
+	if (p.SDDCManager != SDDCManager{}) {
+		if n, err := json.Marshal(p.SDDCManager); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "sddcManager", auto.ConfigValue{Value: string(n)})
+		}
+	}
+	if (p.VCenter != VCenter{}) {
+		if n, err := json.Marshal(p.VCenter); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "vcenter", auto.ConfigValue{Value: string(n)})
+		}
+	}
+	if (p.Nsxt != Nsxt{}) {
+		if n, err := json.Marshal(p.Nsxt); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "nsxt", auto.ConfigValue{Value: string(n)})
+		}
+	}
+	if p.NsxtManagers != nil {
+		if n, err := json.Marshal(p.NsxtManagers); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "nsxtManagers", auto.ConfigValue{Value: string(n)})
 		}
 	}
 	return nil
