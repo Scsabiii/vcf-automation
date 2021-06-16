@@ -248,6 +248,22 @@ func (c *Controller) GetError() error {
 	return c.err
 }
 
+func (c *Controller) GetOutputs() (map[string]string, error) {
+	ctx, stop := context.WithTimeout(context.Background(), 10*time.Second)
+	defer stop()
+	outputs, err := c.stack.Outputs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	n := make(map[string]string, 0)
+	for k, v := range outputs {
+		if s, ok := v.Value.(string); ok {
+			n[k] = s
+		}
+	}
+	return n, nil
+}
+
 // config openstack
 func configureOpenstackProps(ctx context.Context, s Stack, p OpenstackProps) error {
 	if p.Region == "" {

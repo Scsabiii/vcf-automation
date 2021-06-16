@@ -21,6 +21,7 @@ package vcf
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/imdario/mergo"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -280,6 +281,32 @@ func (s *Stack) Update(ctx context.Context) (auto.UpResult, error) {
 		return auto.UpResult{}, err
 	}
 	return res, nil
+}
+
+func (s *Stack) Outputs(ctx context.Context) (auto.OutputMap, error) {
+	o, err := s.Stack.Outputs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := o["cloud-builder"]; ok {
+		delete(o, "cloud-builder")
+	}
+	return o, nil
+}
+
+func (s *Stack) GetOutput(ctx context.Context, key string) (string, error) {
+	o, err := s.Outputs(ctx)
+	if err != nil {
+		return "", err
+	}
+	if v, ok := o[key]; ok {
+		if s, ok := v.Value.(string); ok {
+			return s, nil
+		} else {
+			return "", fmt.Errorf("value error: %s", v.Value)
+		}
+	}
+	return "", fmt.Errorf("key error: %s", key)
 }
 
 func (s *Stack) GetState() interface{} {

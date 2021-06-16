@@ -32,12 +32,12 @@ type Stack interface {
 	GetError() error
 	SetConfig(context.Context, string, auto.ConfigValue) error
 	SetAllConfig(context.Context, auto.ConfigMap) error
+	Outputs(context.Context) (auto.OutputMap, error)
 
 	// GenYaml(context.Context, *Config) ([]byte, error)
 	// Destroy(context.Context) error
 	// GetState()
 
-	// Outputs(context.Context) (auto.OutputMap, error)
 	// Destroy(context.Context, ...optdestroy.Option) (auto.DestroyResult, error)
 	// Preview(ctx context.Context, opts ...optpreview.Option) (auto.PreviewResult, error)
 	// Info(ctx context.Context) (auto.StackSummary, error)

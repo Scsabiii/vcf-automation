@@ -153,7 +153,7 @@ func stacks(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getStackState(w http.ResponseWriter, r *http.Request) {
+func getStackError(w http.ResponseWriter, r *http.Request) {
 	c, err := getControllerByHttpRequest(r)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
@@ -168,6 +168,20 @@ func getStackState(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func getStackOutputs(w http.ResponseWriter, r *http.Request) {
+	c, err := getControllerByHttpRequest(r)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
+	o, err := c.GetOutputs()
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJson(w, o)
+}
+
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.WithFields(log.Fields{
@@ -176,6 +190,17 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		}).Info("handling request")
 		next.ServeHTTP(w, r)
 	})
+}
+
+func writeJson(w http.ResponseWriter, i interface{}) {
+	b, err := json.Marshal(i)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(b)
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleError(w http.ResponseWriter, statusCode int, e error) {

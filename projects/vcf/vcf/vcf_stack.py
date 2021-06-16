@@ -636,4 +636,4 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
                 vcenter=self.props.vcenter,
                 vmware_password=self.props.vmware_password,
             )
-            pulumi.export("cloud-builder.json", cbj)
+            pulumi.export("cloud-builder", cbj)
