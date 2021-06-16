@@ -2,18 +2,37 @@ apiVersion: skaffold/v2beta10
 kind: Config
 metadata:
   name: automation
-build:
-  artifacts:
-    - image: keppel.eu-de-1.cloud.sap/ccloud/vcf-automation
-      sync:
-        manual:
-          - src: "bin/automation_linux_amd64"
-            dest: "../bin"
-            strip: "bin/"
-deploy:
-  kubectl:
-    manifests:
-      - k8s/pod.yaml
-      - k8s/service.yaml
-      - k8s/ingress.yaml
-    defaultNamespace: ccmaas
+profiles:
+  - name: eu-de-1
+    activation:
+      - kubeContext: eu-de-1
+    build:
+      artifacts:
+        - image: keppel.eu-de-1.cloud.sap/ccloud/vcf-automation
+      tagPolicy:
+        sha256: {}
+    deploy:
+      kubectl:
+        manifests:
+          - k8s/deployment-eu-de-1.yaml
+          - k8s/service.yaml
+          - k8s/ingress-eu-de-1.yaml
+        defaultNamespace: vcf
+  - name: qa-de-1
+    activation:
+      - kubeContext: qa-de-1
+    build:
+      artifacts:
+        - image: keppel.eu-de-1.cloud.sap/ccloud/vcf-automation
+          sync:
+            manual:
+              - src: "bin/automation_linux_amd64"
+                dest: "../bin"
+                strip: "bin/"
+    deploy:
+      kubectl:
+        manifests:
+          - k8s/pod-test.yaml
+          - k8s/service-test.yaml
+          - k8s/ingress-test.yaml
+        defaultNamespace: ccmaas

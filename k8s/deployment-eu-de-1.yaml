@@ -18,26 +18,31 @@ spec:
             - "/pulumi/bin/automation"
             - "server"
           env:
-            - name: PULUMI_CONFIG_PASSPHRASE
-              value: pass4config
             - name: PULUMI_BACKEND_URL
               value: file:///pulumi/automation/etc
+            - name: PULUMI_CONFIG_PASSPHRASE
+              valueFrom:
+                secretKeyRef:
+                  name: vcf-secrets
+                  key: pulumi_config_passphrase
             - name: AUTOMATION_PORT
               value: "8080"
             - name: AUTOMATION_OS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: vcf-pass
+                  name: vcf-secrets
                   key: os_password
             - name: AUTOMATION_OS_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: vcf-pass
+                  name: vcf-secrets
                   key: os_username
+            - name: AUTOMATION_OS_REGION
+              value: eu-de-1
             - name: AUTOMATION_VMWARE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: vcf-pass
+                  name: vcf-secrets
                   key: vmware_password
             - name: AUTOMATION_WORK_DIR
               value: /pulumi/automation

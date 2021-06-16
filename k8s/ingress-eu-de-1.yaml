@@ -8,10 +8,10 @@ metadata:
 spec:
   tls:
     - hosts:
-        - vcf-automation.qa-de-1.cloud.sap
-      secretName: vcf-automation
+        - vcf-automation.eu-de-1.cloud.sap
+      secretName: tls-vcf-automation
   rules:
-    - host: vcf-automation.qa-de-1.cloud.sap
+    - host: vcf-automation.eu-de-1.cloud.sap
       http:
         paths:
           - backend:
