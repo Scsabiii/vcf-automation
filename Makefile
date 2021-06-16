@@ -1,5 +1,5 @@
 app=automation
-GOFILES := $(wildcard pkg/*.go pkg/**/*.go)
+GOFILES := $(wildcard *.go cmd/*.go pkg/**/*.go)
 
 .PHONY: build
 build: bin/${app} bin/${app}_linux_amd64 bin/${app}_darwin_amd64
@@ -14,11 +14,13 @@ bin/${app}: bin/${app}_linux_amd64
 
 bin/${app}_linux_amd64: $(GOFILES)
 	@mkdir -p bin
-	GOOS=linux GOARCH=amd64 go build -o $@ -mod vendor ./pkg
+	GOOS=linux GOARCH=amd64 go build -o $@ -mod vendor
+	@chmod +x $@
 
 bin/${app}_darwin_amd64: $(GOFILES)
 	@mkdir -p bin
-	GOOS=darwin GOARCH=amd64 go build -o $@ -mod vendor ./pkg
+	GOOS=darwin GOARCH=amd64 go build -o $@ -mod vendor
+	@chmod +x $@
 
 .PHONY: info
 info: ; $(info $$GOFILES is [${GOFILES}])
