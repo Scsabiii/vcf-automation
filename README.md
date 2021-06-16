@@ -1,16 +1,32 @@
-# VCF deployment automation
+# VCF Automation
 
-This repository contains codes for provisioning VSphere on physical servers in SAP Converged Cloud.
+Automation tool for deploying VMware Cloud Foundation (VCF) on SAP Converged
+Cloud (CCloud). The tool can deploy and extend the infrastructures needed by a
+VCF stack on CCloud, including networks, storages and vSphere servers.
 
 ## Setup
 
-The project is provisioned in several separate stacks: `shared`, `management`
-and `workload`. Some resources are shared by management domain and workload
-domain, e.g., management network and deployment network. Therefore they are
-provisioned in the shared stack.
+<!-- The project is provisioned in several separate stacks: `management` -->
+<!-- and `workload`. Some resources are shared by management domain and workload -->
+<!-- domain, e.g., management network and deployment network. Therefore they are -->
+<!-- provisioned in the shared stack. -->
 
-The configuration file are stored in the directory `$workdir/etc/`. The file
-names follow the convention `{project-name}-{stack-name}.yaml`.
+<!-- The configuration file are stored in the directory `$workdir/etc/`. The file -->
+<!-- names follow the convention `{project-name}-{stack-name}.yaml`. -->
+
+```
+projectType: a string "vcf/management" or "vcf/workload"
+stack: a unique name
+props:
+  openstack:
+    region: ...
+    domain: ...
+    tenant: ...
+  stack:
+    externalNetwork:
+      name: FloatingIP-external-...
+      id: ...
+```
 
 - shared stack:
 
