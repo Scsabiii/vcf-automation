@@ -29,7 +29,7 @@ import (
 )
 
 var configureCmd = &cobra.Command{
-	Use:   "configure <config_file_name>",
+	Use:   "configure [config_file_path]",
 	Short: "Configure project/stack",
 	Long: `automation configure:
 
@@ -41,16 +41,14 @@ extension) with respect to the default configuration directory.`,
 		ctx := context.Background()
 		workdir := viper.GetString("work_dir")
 		projectRoot := viper.GetString("project_root")
-		configdir := viper.GetString("config_dir")
 		if projectRoot == "" {
 			projectRoot = path.Join(workdir, "projects")
 		}
-		if configdir == "" {
-			configdir = path.Join(workdir, "etc")
+		cfg, err := stack.ReadConfig(args[0])
+		if err != nil {
+			logErrorAndExit(err)
 		}
-		fname := args[0] + ".yaml"
-		fpath := path.Join(configdir, fname)
-		c, err := stack.NewControllerFromConfigFile(projectRoot, fpath)
+		c, err := stack.NewController(cfg, projectRoot)
 		if err != nil {
 			logErrorAndExit(err)
 		}
@@ -62,7 +60,7 @@ extension) with respect to the default configuration directory.`,
 		if err != nil {
 			logErrorAndExit(err)
 		}
-		fmt.Printf("successfully configured the stack %s in project %s\n", c.Stack, c.ProjectType)
+		fmt.Printf("successfully configured the stack %s in project %s\n", c.StackName, c.ProjectType)
 	},
 }
 

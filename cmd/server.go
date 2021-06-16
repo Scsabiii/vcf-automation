@@ -29,8 +29,8 @@ var port int
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
 	Use:   "server",
-	Short: "server",
-	Long:  `server`,
+	Short: "start server",
+	Long:  `start server`,
 	Run: func(cmd *cobra.Command, args []string) {
 		server.Run(port)
 	},

@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
@@ -45,63 +46,8 @@ type ConfigMessage struct {
 }
 
 func reload(w http.ResponseWriter, r *http.Request) {
-	created, updated, stopped, err := manager.ReloadConfigs()
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
-	}
-	resp := reloadResponse{
-		Message: "configs reloaded",
-		Created: make([]ConfigMessage, 0),
-		Updated: make([]ConfigMessage, 0),
-		Stopped: make([]ConfigMessage, 0),
-	}
-	for fn, e := range created {
-		if e == nil {
-			resp.Created = append(resp.Created, ConfigMessage{
-				ConfigName: fn,
-				Message:    "succsess",
-			})
-		} else {
-			resp.Created = append(resp.Created, ConfigMessage{
-				ConfigName: fn,
-				Err:        e.Error(),
-			})
-		}
-	}
-	for fn, e := range updated {
-		if e == nil {
-			resp.Updated = append(resp.Updated, ConfigMessage{
-				ConfigName: fn,
-				Message:    "succsess",
-			})
-		} else {
-			resp.Updated = append(resp.Updated, ConfigMessage{
-				ConfigName: fn,
-				Err:        e.Error(),
-			})
-		}
-	}
-	for fn, e := range stopped {
-		if e == nil {
-			resp.Stopped = append(resp.Stopped, ConfigMessage{
-				ConfigName: fn,
-				Message:    "succsess",
-			})
-		} else {
-			resp.Stopped = append(resp.Stopped, ConfigMessage{
-				ConfigName: fn,
-				Err:        e.Error(),
-			})
-		}
-	}
-	js, err := json.Marshal(resp)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(js)
+	messages := manager.ReloadConfigs()
+	writeJson(w, messages)
 }
 
 func startStack(w http.ResponseWriter, r *http.Request) {
@@ -111,7 +57,7 @@ func startStack(w http.ResponseWriter, r *http.Request) {
 	} else {
 		c.start()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprintf("stack %s-%s started\n", c.ProjectType, c.Stack)))
+		w.Write([]byte(fmt.Sprintf("stack %s-%s started\n", c.ProjectType, c.StackName)))
 	}
 }
 
@@ -123,23 +69,21 @@ func stopStack(w http.ResponseWriter, r *http.Request) {
 	}
 	c.stop()
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("stack %s-%s stopped\n", c.ProjectType, c.Stack)))
+	w.Write([]byte(fmt.Sprintf("stack %s-%s stopped\n", c.ProjectType, c.StackName)))
 }
 
 func reloadStack(w http.ResponseWriter, r *http.Request) {
-	c, err := getControllerByHttpRequest(r)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
-	}
-	nc, err := manager.Update(c.ConfigName())
+	vars := mux.Vars(r)
+	project := vars["project"]
+	stack := vars["stack"]
+	nc, err := manager.Update(project, stack)
 	if err != nil {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
 	nc.triggerUpdateStack()
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("stack %s-%s reloaded\n", c.ProjectType, c.Stack)))
+	w.Write([]byte(fmt.Sprintf("stack %s-%s reloaded\n", project, stack)))
 }
 
 func stacks(w http.ResponseWriter, r *http.Request) {
@@ -200,7 +144,6 @@ func writeJson(w http.ResponseWriter, i interface{}) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(b)
-	w.WriteHeader(http.StatusOK)
 }
 
 func handleError(w http.ResponseWriter, statusCode int, e error) {
@@ -210,15 +153,23 @@ func handleError(w http.ResponseWriter, statusCode int, e error) {
 	json.NewEncoder(w).Encode(msg)
 }
 
+func handleErrors(w http.ResponseWriter, statusCode int, errs []error) {
+	msg := make([]string, 0)
+	for _, e := range errs {
+		msg = append(msg, e.Error())
+	}
+	err := fmt.Errorf(strings.Join(msg, "\n"))
+	handleError(w, http.StatusInternalServerError, err)
+}
+
 func getControllerByHttpRequest(r *http.Request) (*StackController, error) {
 	vars := mux.Vars(r)
 	project := vars["project"]
 	stack := vars["stack"]
-	fname := fmt.Sprintf("%s-%s.yaml", project, stack)
-	if sc, ok := manager.Get(fname); ok {
+	if sc, ok := manager.Get(project, stack); ok {
 		return sc, nil
 	} else {
-		err := fmt.Errorf("config not found: %s", fname)
+		err := fmt.Errorf("controller not exist: %s/%s", project, stack)
 		return nil, err
 	}
 }

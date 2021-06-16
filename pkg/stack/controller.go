@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strings"
 	"sync"
 	"time"
 
@@ -18,70 +17,65 @@ import (
 
 type Controller struct {
 	*Config
-	configFilePath string
-	projectPath    string
-	projectRoot    string
-	stack          Stack
-	stackName      string
-	configured     bool
-	err            error
-	mu             sync.Mutex
+	projectPath string
+	projectRoot string
+	stack       Stack
+	configured  bool
+	err         error
+	mu          sync.Mutex
 }
 
-// NewControllerFromConfigFile reads stack config from configFile (full path of
-// configuration file), and initialize controller from it.
-func NewControllerFromConfigFile(projectRootDirectory, configFile string) (*Controller, error) {
-	cfg, err := ReadConfig(configFile)
-	if err != nil {
-		return nil, err
-	}
-	projectName, stackName := getProjectStackName(cfg)
+// NewController creates *Controller with config and projectRoot, and validates
+// the conifg.
+func NewController(config *Config, projectRoot string) (*Controller, error) {
+	project, _ := config.GetProjectStackName()
 	l := Controller{
-		projectRoot:    projectRootDirectory,
-		projectPath:    path.Join(projectRootDirectory, projectName),
-		configFilePath: configFile,
-		Config:         cfg,
-		stackName:      stackName,
+		Config:      config,
+		projectRoot: projectRoot,
+		projectPath: path.Join(projectRoot, project),
 	}
-	err = l.Validate()
+	err := l.Validate()
 	if err != nil {
 		return nil, err
 	}
 	return &l, nil
 }
 
-func getProjectStackName(cfg *Config) (projectName, stackName string) {
-	p := strings.Split(string(cfg.ProjectType), "/")
-	projectName = p[0]
-	if len(p) > 1 {
-		stackName = p[1] + "-" + cfg.Stack
-	} else {
-		stackName = cfg.Stack
-	}
-	return
-}
+// // NewControllerFromConfigFile reads stack config from configFile (full path of
+// // configuration file), and initialize controller from it.
+// func NewControllerFromConfigFile(projectRootDirectory, configFile string) (*Controller, error) {
+// 	cfg, err := ReadConfig(configFile)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	projectName, stackName := getProjectStackName(cfg)
+// 	l := Controller{
+// 		projectRoot:    projectRootDirectory,
+// 		projectPath:    path.Join(projectRootDirectory, projectName),
+// 		configFilePath: configFile,
+// 		Config:         cfg,
+// 		stackName:      stackName,
+// 	}
+// 	err = l.Validate()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &l, nil
+// }
 
-func (c *Controller) ReloadConfig() error {
-	cfg, err := ReadConfig(c.configFilePath)
+func (c *Controller) ReloadConfig(cfgpath string) error {
+	cfg, err := ReadConfig(cfgpath)
 	if err != nil {
 		return err
 	}
 	if cfg.ProjectType != c.ProjectType {
 		return fmt.Errorf("project does not match")
 	}
-	if cfg.Stack != c.Stack {
+	if cfg.StackName != c.StackName {
 		return fmt.Errorf("config does not match")
 	}
 	c.Config = cfg
 	return nil
-}
-
-func (c *Controller) ConfigName() string {
-	return path.Base(c.configFilePath)
-}
-
-func (c *Controller) ConfigFullName() string {
-	return c.configFilePath
 }
 
 func (c *Controller) Validate() error {
@@ -100,7 +94,7 @@ func (c *Controller) Run(updateCh <-chan bool, cancelCh <-chan bool) {
 	logger := log.WithFields(log.Fields{
 		"package": "stack",
 		"project": c.ProjectType,
-		"stack":   c.stackName,
+		"stack":   c.StackName,
 	})
 	tickerDuration := 15 * time.Minute
 	ticker := time.NewTicker(tickerDuration)
@@ -172,19 +166,19 @@ func (l *Controller) InitStack(ctx context.Context) error {
 	defer l.mu.Unlock()
 	switch v := ProjectType(l.ProjectType); v {
 	case ProjectExample:
-		if s, err := InitExampleStack(ctx, l.stackName, l.projectPath); err != nil {
+		if s, err := InitExampleStack(ctx, l.StackName, l.projectPath); err != nil {
 			return err
 		} else {
 			l.stack = s
 		}
 	case ProjectEsxi:
-		s, err := esxi.InitEsxiStack(ctx, l.stackName, l.projectPath)
+		s, err := esxi.InitEsxiStack(ctx, l.StackName, l.projectPath)
 		if err != nil {
 			return err
 		}
 		l.stack = s
 	case ProjectVCFManagement, ProjectVCFWorkload:
-		s, err := vcf.InitVCFStack(ctx, l.stackName, l.projectPath)
+		s, err := vcf.InitVCFStack(ctx, l.StackName, l.projectPath)
 		if err != nil {
 			return err
 		}
@@ -302,9 +296,9 @@ func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
 	switch v := ProjectType(cfg.ProjectType); v {
 	case ProjectExample:
 	case ProjectEsxi:
-		stackProps := append([]StackProps{cfg.Props.StackProps}, cfg.Props.BaseStackProps...)
+		stackProps := append([]StackProps{cfg.Props.StackProps}, cfg.baseStackProps...)
 		props := make([]esxi.StackProps, len(stackProps))
-		err := unmarshalStackProps(cfg.Props.StackProps, &props)
+		err := UnmarshalStackProps(cfg.Props.StackProps, &props)
 		if err != nil {
 			return err
 		}
@@ -313,9 +307,9 @@ func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
 			return err
 		}
 	case ProjectVCFManagement, ProjectVCFWorkload:
-		stackProps := append([]StackProps{cfg.Props.StackProps}, cfg.Props.BaseStackProps...)
+		stackProps := append([]StackProps{cfg.Props.StackProps}, cfg.baseStackProps...)
 		props := make([]vcf.StackProps, len(stackProps))
-		err := unmarshalStackPropList(stackProps, &props)
+		err := UnmarshalStackPropList(stackProps, &props)
 		if err != nil {
 			return err
 		}
@@ -335,5 +329,5 @@ func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
 func (c *Controller) PrintStackResources() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	printStackResources(c.stackName)
+	printStackResources(c.StackName)
 }
