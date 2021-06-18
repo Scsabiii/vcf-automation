@@ -185,6 +185,10 @@ func lookupOutput(outputs auto.OutputMap, key string) (string, error) {
 	return "", err
 }
 
+func (s *Stack) GetOutput(ctx context.Context, key string) (string, error) {
+	return "", nil
+}
+
 func (s *Stack) SetState() {
 	// for k, v := range res.Outputs {
 	// 	switch k {

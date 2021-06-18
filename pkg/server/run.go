@@ -58,13 +58,14 @@ func Run(port int) {
 	r := mux.NewRouter()
 	r.Use(loggingMiddleware)
 	r.Headers("Content-Type", "application/json")
-	r.HandleFunc("/stacks", stacks).Methods("GET")
 	r.HandleFunc("/reload", reload).Methods("GET")
-	r.HandleFunc("/{project}/{stack}", getStackOutputs).Methods("GET")
+	r.HandleFunc("/vcf", stackSummaries).Methods("GET")
+	r.HandleFunc("/{project}/{stack}/state", getStackOutputs).Methods("GET")
 	r.HandleFunc("/{project}/{stack}/error", getStackError).Methods("GET")
 	r.HandleFunc("/{project}/{stack}/start", startStack).Methods("GET")
 	r.HandleFunc("/{project}/{stack}/stop", stopStack).Methods("GET")
 	r.HandleFunc("/{project}/{stack}/reload", reloadStack).Methods("GET")
+	r.HandleFunc("/{project}/{stack}/{key}.json", jsonFileHandler).Methods("GET")
 
 	h := pageHandler{
 		staticPath:   viper.GetString("static_path"),

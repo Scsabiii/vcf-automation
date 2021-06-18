@@ -45,9 +45,28 @@ type ConfigMessage struct {
 	Err        string `json:"err,omitempty"`
 }
 
+type StackSummary struct {
+	Name       string            `json:"name,omitempty"`
+	ConfigFile string            `json:"config_file,omitempty"`
+	Status     string            `json:"status,omitempty"`
+	HasError   bool              `json:"has_error,omitempty"`
+	Outputs    map[string]string `json:"outputs,omitempty"`
+	Links      []Link            `json:"links,omitempty"`
+}
+
+type Link struct {
+	Name        string `json:"name,omitempty"`
+	Url         string `json:"url,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
 func reload(w http.ResponseWriter, r *http.Request) {
 	messages := manager.ReloadConfigs()
-	writeJson(w, messages)
+	err := writeJson(w, messages)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
 }
 
 func startStack(w http.ResponseWriter, r *http.Request) {
@@ -86,14 +105,61 @@ func reloadStack(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("stack %s-%s reloaded\n", project, stack)))
 }
 
-func stacks(w http.ResponseWriter, r *http.Request) {
+func jsonFileHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	c, err := getControllerByHttpRequest(r)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
+	s, err := c.Controller.GetOutput(vars["key"])
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
+	err = writeJson(w, s)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
+}
+
+// TODO: show stck summary only for the project
+func stackSummaries(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
+	ss := make([]StackSummary, 0)
 	for k, c := range manager.controllers {
+		project, stack := c.GetProjectStackName()
+		httpBase := "http://localhost:8080"
+		uriBase := httpBase + fmt.Sprintf("/%s/%s", project, stack)
+		status := "stopped"
 		if c.running {
-			w.Write([]byte(fmt.Sprintf("%s: running\n", k)))
-		} else {
-			w.Write([]byte(fmt.Sprintf("%s: stopped\n", k)))
+			status = "running"
 		}
+		hasError := false
+		if c.GetError() != nil {
+			hasError = true
+		}
+		links := make([]Link, 0)
+		links = append(links, Link{"cloud-builder", uriBase + "/cloud-builder.json", "payload for cloud builder"})
+		links = append(links, Link{"state", uriBase + "/state", "resources deployed by automation"})
+		links = append(links, Link{"error", uriBase + "/error", ""})
+		links = append(links, Link{"start", uriBase + "/start", "restart automation controller loop"})
+		links = append(links, Link{"stop", uriBase + "/stop", "pause automation controller"})
+		links = append(links, Link{"reload", uriBase + "/reload", "force controller to reload configuration"})
+		s := StackSummary{
+			Name:       k,
+			ConfigFile: c.ConfigPath,
+			Status:     status,
+			HasError:   hasError,
+			Links:      links,
+		}
+		ss = append(ss, s)
+	}
+	err := writeJson(w, ss)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
 	}
 }
 
@@ -123,7 +189,11 @@ func getStackOutputs(w http.ResponseWriter, r *http.Request) {
 		handleError(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJson(w, o)
+	err = writeJson(w, o)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, err)
+		return
+	}
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {
@@ -136,14 +206,30 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func writeJson(w http.ResponseWriter, i interface{}) {
-	b, err := json.Marshal(i)
-	if err != nil {
-		handleError(w, http.StatusInternalServerError, err)
-		return
+func writeJson(w http.ResponseWriter, data interface{}) error {
+	var err error
+	var b []byte
+	if jsontext, ok := data.(string); ok {
+		// when data is a json string
+		var objmap map[string]*json.RawMessage
+		err = json.Unmarshal([]byte(jsontext), &objmap)
+		if err != nil {
+			return err
+		}
+		b, err = json.Marshal(objmap)
+		if err != nil {
+			return err
+		}
+	} else {
+		// when data is struct
+		b, err = json.Marshal(data)
+		if err != nil {
+			return err
+		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(b)
+	return nil
 }
 
 func handleError(w http.ResponseWriter, statusCode int, e error) {

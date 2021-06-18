@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"time"
 
@@ -201,11 +202,11 @@ func (c *Controller) ConfigureStack(ctx context.Context) error {
 	if c.stack == nil {
 		return fmt.Errorf("stack uninitialized")
 	}
-	err := configureOpenstackProps(ctx, c.stack, c.Config.Props.OpenstackProps)
+	err := c.configureOpenstackProps(ctx, c.Config.Props.OpenstackProps)
 	if err != nil {
 		return err
 	}
-	err = configureStackProps(ctx, c.stack, c.Config)
+	err = c.configureStackProps(ctx, c.Config)
 	if err != nil {
 		return err
 	}
@@ -258,8 +259,14 @@ func (c *Controller) GetOutputs() (map[string]string, error) {
 	return n, nil
 }
 
+func (c *Controller) GetOutput(key string) (string, error) {
+	ctx, stop := context.WithTimeout(context.Background(), 10*time.Second)
+	defer stop()
+	return c.stack.GetOutput(ctx, key)
+}
+
 // config openstack
-func configureOpenstackProps(ctx context.Context, s Stack, p OpenstackProps) error {
+func (c *Controller) configureOpenstackProps(ctx context.Context, p OpenstackProps) error {
 	if p.Region == "" {
 		return fmt.Errorf("Config.Props.Openstack.Region not set")
 	}
@@ -278,7 +285,7 @@ func configureOpenstackProps(ctx context.Context, s Stack, p OpenstackProps) err
 	if osPassword == "" {
 		return fmt.Errorf("env variable AUTOMATION_OS_PASSWORD not configured")
 	}
-	c := auto.ConfigMap{
+	m := auto.ConfigMap{
 		"openstack:authUrl":           configValue(osAuthURL),
 		"openstack:region":            configValue(p.Region),
 		"openstack:projectDomainName": configValue(p.Domain),
@@ -288,11 +295,11 @@ func configureOpenstackProps(ctx context.Context, s Stack, p OpenstackProps) err
 		"openstack:insecure":          configValue("true"),
 		"openstack:password":          configSecret(osPassword),
 	}
-	return s.SetAllConfig(ctx, c)
+	return c.stack.SetAllConfig(ctx, m)
 }
 
 // configure stack props
-func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
+func (c *Controller) configureStackProps(ctx context.Context, cfg *Config) error {
 	switch v := ProjectType(cfg.ProjectType); v {
 	case ProjectExample:
 	case ProjectEsxi:
@@ -302,7 +309,7 @@ func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
 		if err != nil {
 			return err
 		}
-		err = s.(*esxi.Stack).Configure(ctx, props...)
+		err = c.stack.(*esxi.Stack).Configure(ctx, props...)
 		if err != nil {
 			return err
 		}
@@ -313,17 +320,28 @@ func configureStackProps(ctx context.Context, s Stack, cfg *Config) error {
 		if err != nil {
 			return err
 		}
-		err = s.(*vcf.Stack).Configure(ctx, props...)
+		err = c.stack.(*vcf.Stack).Configure(ctx, props...)
+		if err != nil {
+			return err
+		}
+		// config metadata and env variables
+		stackType := strings.Split(string(v), "/")[1]
+		c.configureValue(ctx, "stackType", stackType)
 		if err != nil {
 			return err
 		}
 		password := viper.GetString("vmware_password")
-		err = s.(*vcf.Stack).ConfigureVMwarePassword(ctx, password)
+		c.configureValue(ctx, "vmwarePassword", password)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+//
+func (c *Controller) configureValue(ctx context.Context, key, value string) error {
+	return c.stack.SetConfig(ctx, key, auto.ConfigValue{Value: value})
 }
 
 func (c *Controller) PrintStackResources() {

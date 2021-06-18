@@ -41,7 +41,6 @@ type StackProps struct {
 	EsxiServerFlavorID string           `yaml:"esxiServerFlavorID"`
 	EsxiNodes          []EsxiNode       `yaml:"esxiNodes"`
 	PrivateNetworks    []PrivateNetwork `yaml:"privateNetworks"`
-	ReservedIPs        []RerservedIP    `yaml:"reservedIPs"`
 	Shares             []Share          `yaml:"shares"`
 	SDDCManager        SDDCManager      `yaml:"sddcManager"`
 	Nsxt               Nsxt             `yaml:"nsxt"`
@@ -56,6 +55,9 @@ type StackProps struct {
 	ReverseDNSZoneName string            `yaml:"reverseDnsZoneName"`
 	HelperVM           HelperVM          `yaml:"helperVM"`
 	KeypairFile        KeypairFile       `yaml:"keypairFile"`
+
+	// props that are not set from config file
+	ReservedIPs []ReservedIP
 }
 
 type ExternalNetwork struct {
@@ -106,9 +108,9 @@ type EsxiNode struct {
 	ImageName string `yaml:"imageName" json:"image_name,omitempty"`
 }
 
-type RerservedIP struct {
-	IP   string `yaml:"ip" json:"ip,omitempty"`
-	Name string `yaml:"name" json:"name,omitempty"`
+type ReservedIP struct {
+	IP       string `yaml:"ip" json:"ip,omitempty"`
+	Hostname string `yaml:"hostname" json:"hostname,omitempty"`
 }
 
 type Share struct {
@@ -203,13 +205,6 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 			s.SetConfig(ctx, "privateNetworks", auto.ConfigValue{Value: string(pn)})
 		}
 	}
-	if p.ReservedIPs != nil {
-		if n, err := json.Marshal(p.ReservedIPs); err != nil {
-			return err
-		} else {
-			s.SetConfig(ctx, "reservedIPs", auto.ConfigValue{Value: string(n)})
-		}
-	}
 	if p.EsxiNodes != nil {
 		if n, err := json.Marshal(p.EsxiNodes); err != nil {
 			return err
@@ -230,25 +225,18 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 			s.SetConfig(ctx, "shares", auto.ConfigValue{Value: string(n)})
 		}
 	}
-	if (p.SDDCManager != SDDCManager{}) {
-		if n, err := json.Marshal(p.SDDCManager); err != nil {
-			return err
-		} else {
-			s.SetConfig(ctx, "sddcManager", auto.ConfigValue{Value: string(n)})
-		}
-	}
-	if (p.VCenter != VCenter{}) {
-		if n, err := json.Marshal(p.VCenter); err != nil {
-			return err
-		} else {
-			s.SetConfig(ctx, "vcenter", auto.ConfigValue{Value: string(n)})
-		}
-	}
+
+	// make reserved ip list
+	p.ReservedIPs = []ReservedIP{}
 	if (p.Nsxt != Nsxt{}) {
 		if n, err := json.Marshal(p.Nsxt); err != nil {
 			return err
 		} else {
 			s.SetConfig(ctx, "nsxt", auto.ConfigValue{Value: string(n)})
+			p.ReservedIPs = append(p.ReservedIPs, ReservedIP{
+				Hostname: p.Nsxt.Hostname,
+				IP:       p.Nsxt.IP,
+			})
 		}
 	}
 	if p.NsxtManagers != nil {
@@ -256,13 +244,42 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 			return err
 		} else {
 			s.SetConfig(ctx, "nsxtManagers", auto.ConfigValue{Value: string(n)})
+			for _, m := range p.NsxtManagers {
+				p.ReservedIPs = append(p.ReservedIPs, ReservedIP{
+					Hostname: m.Hostname,
+					IP:       m.IP,
+				})
+			}
 		}
 	}
+	if (p.SDDCManager != SDDCManager{}) {
+		if n, err := json.Marshal(p.SDDCManager); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "sddcManager", auto.ConfigValue{Value: string(n)})
+			p.ReservedIPs = append(p.ReservedIPs, ReservedIP{
+				Hostname: p.SDDCManager.Hostname,
+				IP:       p.SDDCManager.IP,
+			})
+		}
+	}
+	if (p.VCenter != VCenter{}) {
+		if n, err := json.Marshal(p.VCenter); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "vcenter", auto.ConfigValue{Value: string(n)})
+			p.ReservedIPs = append(p.ReservedIPs, ReservedIP{
+				Hostname: p.VCenter.Hostname,
+				IP:       p.VCenter.IP,
+			})
+		}
+	}
+	if n, err := json.Marshal(p.ReservedIPs); err != nil {
+		return err
+	} else {
+		s.SetConfig(ctx, "reservedIPs", auto.ConfigValue{Value: string(n)})
+	}
 	return nil
-}
-
-func (s *Stack) ConfigureVMwarePassword(ctx context.Context, p string) error {
-	return s.SetConfig(ctx, "vmwarePassword", auto.ConfigValue{Value: p})
 }
 
 func (s *Stack) Refresh(ctx context.Context) error {
@@ -294,8 +311,9 @@ func (s *Stack) Outputs(ctx context.Context) (auto.OutputMap, error) {
 	return o, nil
 }
 
+//
 func (s *Stack) GetOutput(ctx context.Context, key string) (string, error) {
-	o, err := s.Outputs(ctx)
+	o, err := s.Stack.Outputs(ctx)
 	if err != nil {
 		return "", err
 	}

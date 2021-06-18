@@ -90,11 +90,11 @@
     "rootLoginEnabledForNsxtManager": "true",
     "sshEnabledForNsxtManager": "true",
     "overLayTransportZone": {
-      "zoneName": "qa-vcf01-tz-overlay01", # region-tz-overlay01
+      "zoneName": "{{ region }}-tz-overlay01",
       "networkName": "netName-overlay"
     },
     "vlanTransportZone": {
-      "zoneName": "qa-vcf01-tz-vlan01", # region-tz-vlan01
+      "zoneName": "{{ region }}-tz-vlan01",
       "networkName": "netName-vlan"
     },
     "vip": "{{ nsxt.ip }}",
@@ -121,7 +121,7 @@
   "vsanSpec": {
     "vsanName": "vsan-1",
     "vsanDedup": "false",
-    "datastoreName": "vc-a-0-cl01-ds-vsan01" # vc-region-cl01-ds-vsan01
+    "datastoreName": "vc-{{ region }}-cl01-ds-vsan01"
   },
   "dvSwitchVersion": "7.0.0",
   "dvsSpecs": [

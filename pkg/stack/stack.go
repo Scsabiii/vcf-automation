@@ -28,29 +28,11 @@ type Stack interface {
 	Workspace() auto.Workspace
 	Refresh(context.Context) error
 	Update(context.Context) (auto.UpResult, error)
-	GetState() interface{}
-	GetError() error
 	SetConfig(context.Context, string, auto.ConfigValue) error
 	SetAllConfig(context.Context, auto.ConfigMap) error
 	Outputs(context.Context) (auto.OutputMap, error)
 
-	// GenYaml(context.Context, *Config) ([]byte, error)
-	// Destroy(context.Context) error
-	// GetState()
-
-	// Destroy(context.Context, ...optdestroy.Option) (auto.DestroyResult, error)
-	// Preview(ctx context.Context, opts ...optpreview.Option) (auto.PreviewResult, error)
-	// Info(ctx context.Context) (auto.StackSummary, error)
-
-	// History(ctx context.Context) ([]auto.UpdateSummary, error)
-	// History(ctx context.Context, pageSize int, page int) ([]auto.UpdateSummary, error)
+	GetState() interface{}
+	GetError() error
+	GetOutput(context.Context, string) (string, error)
 }
-
-// type YamlOutput struct {
-// 	Nodes []NodeOutput `yaml:"nodes"`
-// }
-
-// type NodeOutput struct {
-// 	ID string `yaml:"id"`
-// 	IP string `yaml:"ip"`
-// }

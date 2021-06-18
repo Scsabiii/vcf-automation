@@ -108,3 +108,6 @@ func (s ExampleStack) GetState() interface{} {
 func (s ExampleStack) GetError() error {
 	return nil
 }
+func (s ExampleStack) GetOutput(ctx context.Context, key string) (string, error) {
+	return "", nil
+}
