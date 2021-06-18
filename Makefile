@@ -1,5 +1,6 @@
 app=automation
-GOFILES := $(wildcard *.go cmd/*.go pkg/**/*.go)
+# GOFILES := $(wildcard *.go cmd/*.go pkg/**/*.go pkg/**/**/*.go)
+GOFILES := $(shell find . -name "*.go")
 
 .PHONY: build
 build: bin/${app} bin/${app}_linux_amd64 bin/${app}_darwin_amd64
