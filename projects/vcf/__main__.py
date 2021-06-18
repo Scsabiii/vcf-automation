@@ -7,8 +7,9 @@ from vcf import ManagementStack, WorkloadStack
 
 
 # stack
+config = pulumi.Config()
 stack_name = pulumi.get_stack()
-stack_type = stack_name.split("-")[0]
+stack_type = config.require("stackType")
 
 ###################################################################################
 # ccadmin/cloud_admin and ccadmin/master provider

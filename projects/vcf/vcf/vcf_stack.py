@@ -31,6 +31,7 @@ def resources_cache(*names):
 class VCFStack:
     def __init__(self, provider_cloud_admin, provider_ccadmin_master) -> None:
         self.config = pulumi.Config()
+        self.openstack_config = pulumi.Config("openstack")
         self.stack_name = pulumi.get_stack()
         self.provider_cloud_admin = provider_cloud_admin
         self.provider_ccadmin_master = provider_ccadmin_master
@@ -62,19 +63,16 @@ class VCFStack:
             reserved_ips = json.loads(self.config.require("reservedIPs"))
         except ConfigMissingError:
             reserved_ips = []
-        try:
-            nsxt_managers=json.loads(self.config.require("nsxtManagers"))
-        except ConfigMissingError:
-            nsxt_managers = []
+        nsxt=json.loads(self.config.require("nsxt"))
 
         self.props = SimpleNamespace(
             helper_vm=json.loads(self.config.require("helperVM")),
             public_key_file=public_key_file,
             private_key_file=private_key_file,
-            nsxt=self.config.require("nsxt"),
-            nsxt_managers=nsxt_managers,
-            sddc_manager=self.config.require("sddcManager"),
-            vcenter=self.config.require("vcenter"),
+            nsxt=json.loads(self.config.require("nsxt")),
+            nsxt_managers=json.loads(self.config.require("nsxtManagers")),
+            sddc_manager=json.loads(self.config.require("sddcManager")),
+            vcenter=json.loads(self.config.require("vcenter")),
             vmware_password=self.config.require("vmwarePassword"),
             # networks
             external_network=json.loads(self.config.require("externalNetwork")),
@@ -586,8 +584,8 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
 
     def _provision_reserved_names(self):
         for r in self.props.reserved_ips:
-            ipaddr, name = r["ip"], r["name"]
-            self._provision_dns_record(name, ipaddr)
+            ipaddr, hostname = r["ip"], r["hostname"]
+            self._provision_dns_record(hostname, ipaddr)
             networking.Port(
                 "reserved-port-" + ipaddr,
                 network_id=self.resources.mgmt_network.id,
@@ -635,5 +633,6 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
                 sddc_manager=self.props.sddc_manager,
                 vcenter=self.props.vcenter,
                 vmware_password=self.props.vmware_password,
+                region=self.openstack_config.require("region"),
             )
             pulumi.export("cloud-builder", cbj)
