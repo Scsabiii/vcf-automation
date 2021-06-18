@@ -1,4 +1,4 @@
-FROM pulumi/pulumi-python:3.2.0
+FROM keppel.eu-de-1.cloud.sap/ccloud-dockerhub-mirror/pulumi-python:3.2.0
 LABEL source_repository="https://github.com/sapcc/vcf-automation"
 
 ARG workdir=/pulumi/automation
