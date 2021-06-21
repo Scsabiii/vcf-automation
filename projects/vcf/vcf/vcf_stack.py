@@ -63,16 +63,31 @@ class VCFStack:
             reserved_ips = json.loads(self.config.require("reservedIPs"))
         except ConfigMissingError:
             reserved_ips = []
-        nsxt=json.loads(self.config.require("nsxt"))
+        try:
+            sddc_manager = json.loads(self.config.require("sddcManager"))
+        except ConfigMissingError:
+            sddc_manager = {}
+        try:
+            vcenter = json.loads(self.config.require("vcenter"))
+        except ConfigMissingError:
+            vcenter = {}
+        try:
+            nsxt = json.loads(self.config.require("nsxt"))
+        except ConfigMissingError:
+            nsxt = {}
+        try:
+            nsxt_managers = json.loads(self.config.require("nsxtManagers"))
+        except ConfigMissingError:
+            nsxt_managers = []
 
         self.props = SimpleNamespace(
             helper_vm=json.loads(self.config.require("helperVM")),
             public_key_file=public_key_file,
             private_key_file=private_key_file,
-            nsxt=json.loads(self.config.require("nsxt")),
-            nsxt_managers=json.loads(self.config.require("nsxtManagers")),
-            sddc_manager=json.loads(self.config.require("sddcManager")),
-            vcenter=json.loads(self.config.require("vcenter")),
+            nsxt=nsxt,
+            nsxt_managers=nsxt_managers,
+            sddc_manager=sddc_manager,
+            vcenter=vcenter,
             vmware_password=self.config.require("vmwarePassword"),
             # networks
             external_network=json.loads(self.config.require("externalNetwork")),
