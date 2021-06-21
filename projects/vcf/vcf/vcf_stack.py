@@ -231,7 +231,7 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             flavor_id=self.props.helper_vm["flavor_id"],
             image_name=self.props.helper_vm["image_name"],
             networks=[
-                compute.InstanceNetworkArgs(name=self.props.deploy_network["name"]),
+                compute.InstanceNetworkArgs(name=self.resources.deploy_network.name),
             ],
             key_pair=self.resources.keypair.name,
             user_data=init_script,
@@ -619,8 +619,11 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             self._provision_dns_record("esxi-" + node_name, node_ip)
 
     def _provision_shares(self):
-        nfs_network = self.resources.private_networks["nfs"]["network"]
-        nfs_subnet = self.resources.private_networks["nfs"]["subnet"]
+        try:
+            nfs_network = self.resources.private_networks["nfs"]["network"]
+            nfs_subnet = self.resources.private_networks["nfs"]["subnet"]
+        except KeyError:
+            return
         share_network = sharedfilesystem.ShareNetwork(
             "share_network_vcf",
             description="share network for vcf datastore",
