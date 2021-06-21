@@ -50,11 +50,11 @@ class VCFStack:
         try:
             esxi_nodes = json.loads(self.config.require("esxiNodes"))
             esxi_image_name = self.config.require("esxiServerImage")
-            esxi_flavor_id = self.config.require("esxiServerFlavorID")
+            esxi_flavor_name = self.config.require("esxiServerFlavor")
         except ConfigMissingError:
             esxi_nodes = []
             esxi_image_name = ""
-            esxi_flavor_id = ""
+            esxi_flavor_name = ""
         try:
             shares = json.loads(self.config.require("shares"))
         except ConfigMissingError:
@@ -101,7 +101,7 @@ class VCFStack:
             reserved_ips=reserved_ips,
             # esxi servers
             esxi_image=esxi_image_name,
-            esxi_flavor_id=esxi_flavor_id,
+            esxi_flavor_name=esxi_flavor_name,
             esxi_nodes=esxi_nodes,
             shares=shares,
         )
@@ -228,7 +228,7 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
         helper_vm = compute.Instance(
             "helper-vm",
             name="helper-vm",
-            flavor_id=self.props.helper_vm["flavor_id"],
+            flavor_name=self.props.helper_vm["flavor_name"],
             image_name=self.props.helper_vm["image_name"],
             networks=[
                 compute.InstanceNetworkArgs(name=self.resources.deploy_network.name),
@@ -369,7 +369,7 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
                 "esxi-" + node_name,
                 name="esxi-" + node_name,
                 availability_zone_hints=f"::{node_id}",
-                flavor_id=self.props.esxi_flavor_id,
+                flavor_name=self.props.esxi_flavor_name,
                 image_name=self.props.esxi_image,
                 networks=[compute.InstanceNetworkArgs(port=parent_port.id)],
                 key_pair=self.resources.keypair.name,

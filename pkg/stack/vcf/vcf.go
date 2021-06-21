@@ -213,7 +213,7 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 		s.SetConfig(ctx, "esxiServerImage", auto.ConfigValue{Value: p.EsxiServerImage})
 	}
 	if p.EsxiServerFlavor != "" {
-		s.SetConfig(ctx, "esxiServerFlavorID", auto.ConfigValue{Value: p.EsxiServerFlavor})
+		s.SetConfig(ctx, "esxiServerFlavor", auto.ConfigValue{Value: p.EsxiServerFlavor})
 	}
 	if p.Shares != nil {
 		if n, err := json.Marshal(p.Shares); err != nil {
