@@ -11,3 +11,8 @@ skaffold.yaml
 test/projects/*/__pycache__/
 test/projects/*/.pulumi
 test/projects/*/test.sh
+
+projects/*/__pycache__
+projects/*/.pulumi
+projects/*/*.yaml
+!projects/*/Pulumi.yaml

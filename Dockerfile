@@ -24,7 +24,7 @@ RUN apt update && \
 	rm -rf /var/lib/apt/lists/*
 
 # COPY test/etc ${workdir}/etc
-COPY test/projects/vcf ${workdir}/projects/vcf
+COPY projects/vcf ${workdir}/projects/vcf
 COPY bin/automation /pulumi/bin/automation
 COPY static ${workdir}/static
 COPY templates ${workdir}/templates
