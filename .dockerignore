@@ -1,16 +1,16 @@
 .git
 bin
-!bin/automation
-ccmaas/viewer
-docker
 k8s
+static
+templates
+test
+vendor
+Dockerfile
 LICENSE
+Makefile
+pyrightconfig.json
 README.md
 skaffold.yaml
-
-test/projects/*/__pycache__/
-test/projects/*/.pulumi
-test/projects/*/test.sh
 
 projects/*/__pycache__
 projects/*/.pulumi

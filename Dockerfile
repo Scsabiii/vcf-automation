@@ -1,12 +1,11 @@
 # build go binary
 FROM keppel.eu-de-1.cloud.sap/ccloud-dockerhub-mirror/library/golang:1.16-alpine AS build
-RUN  mkdir -p /go/src \
-  && mkdir -p /go/bin \
-  && mkdir -p /go/pkg
-ENV GOPATH=/go
-ENV PATH=$GOPATH/bin:$PATH
-WORKDIR $GOPATH/src/automation 
-COPY . .
+WORKDIR /src
+COPY go.* .
+RUN go mod download
+COPY main.go .
+COPY cmd ./cmd/
+COPY pkg ./pkg/
 RUN go build -o automation .
 
 # pulumi python
@@ -37,7 +36,5 @@ RUN apt update && \
 
 # COPY test/etc ${workdir}/etc
 COPY projects/vcf ${workdir}/projects/vcf
-COPY --from=build /go/src/automation/automation /pulumi/bin/automation
-COPY static ${workdir}/static
-COPY templates ${workdir}/templates
+COPY --from=build /src/automation /pulumi/bin/automation
 
