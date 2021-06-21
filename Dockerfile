@@ -1,7 +1,7 @@
 # build go binary
 FROM keppel.eu-de-1.cloud.sap/ccloud-dockerhub-mirror/library/golang:1.16-alpine AS build
 WORKDIR /src
-COPY go.* .
+COPY go.* ./
 RUN go mod download
 COPY main.go .
 COPY cmd ./cmd/
