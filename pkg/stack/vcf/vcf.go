@@ -37,27 +37,24 @@ type StackState struct {
 }
 
 type StackProps struct {
-	EsxiServerImage    string           `yaml:"esxiServerImage"`
-	EsxiServerFlavorID string           `yaml:"esxiServerFlavorID"`
-	EsxiNodes          []EsxiNode       `yaml:"esxiNodes"`
-	PrivateNetworks    []PrivateNetwork `yaml:"privateNetworks"`
-	Shares             []Share          `yaml:"shares"`
-	SDDCManager        SDDCManager      `yaml:"sddcManager"`
-	Nsxt               Nsxt             `yaml:"nsxt"`
-	NsxtManagers       []NsxtManager    `yaml:"nsxtManagers"`
-	VCenter            VCenter          `yaml:"vcenter"`
-
+	EsxiServerImage    string            `yaml:"esxiServerImage"`
+	EsxiServerFlavor   string            `yaml:"esxiServerFlavor"`
+	EsxiNodes          []EsxiNode        `yaml:"esxiNodes"`
+	Shares             []Share           `yaml:"shares"`
+	SDDCManager        SDDCManager       `yaml:"sddcManager"`
+	Nsxt               Nsxt              `yaml:"nsxt"`
+	NsxtManagers       []NsxtManager     `yaml:"nsxtManagers"`
+	VCenter            VCenter           `yaml:"vcenter"`
 	ExternalNetwork    ExternalNetwork   `yaml:"externalNetwork"`
 	ManagementNetwork  MgmtNetwork       `yaml:"managementNetwork"`
 	DeploymentNetwork  DeploymentNetwork `yaml:"deploymentNetwork"`
+	PrivateNetworks    []PrivateNetwork  `yaml:"privateNetworks"`
 	PublicRouter       string            `yaml:"publicRouter"`
 	DNSZoneName        string            `yaml:"dnsZoneName"`
 	ReverseDNSZoneName string            `yaml:"reverseDnsZoneName"`
 	HelperVM           HelperVM          `yaml:"helperVM"`
 	KeypairFile        KeypairFile       `yaml:"keypairFile"`
-
-	// props that are not set from config file
-	ReservedIPs []ReservedIP
+	ReservedIPs        []ReservedIP      `yaml:"reservedIPs"`
 }
 
 type ExternalNetwork struct {
@@ -215,8 +212,8 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 	if p.EsxiServerImage != "" {
 		s.SetConfig(ctx, "esxiServerImage", auto.ConfigValue{Value: p.EsxiServerImage})
 	}
-	if p.EsxiServerFlavorID != "" {
-		s.SetConfig(ctx, "esxiServerFlavorID", auto.ConfigValue{Value: p.EsxiServerFlavorID})
+	if p.EsxiServerFlavor != "" {
+		s.SetConfig(ctx, "esxiServerFlavorID", auto.ConfigValue{Value: p.EsxiServerFlavor})
 	}
 	if p.Shares != nil {
 		if n, err := json.Marshal(p.Shares); err != nil {
@@ -227,7 +224,9 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 	}
 
 	// make reserved ip list
-	p.ReservedIPs = []ReservedIP{}
+	if p.ReservedIPs == nil {
+		p.ReservedIPs = []ReservedIP{}
+	}
 	if (p.Nsxt != Nsxt{}) {
 		if n, err := json.Marshal(p.Nsxt); err != nil {
 			return err
