@@ -3,10 +3,8 @@ FROM keppel.eu-de-1.cloud.sap/ccloud-dockerhub-mirror/library/golang:1.16-alpine
 WORKDIR /src
 COPY go.* ./
 RUN go mod download
-COPY main.go .
-COPY cmd ./cmd/
-COPY pkg ./pkg/
-RUN go build -o automation .
+COPY . .
+RUN CGO_ENABLED=0 go build -o /src/automation .
 
 # pulumi python
 FROM keppel.eu-de-1.cloud.sap/ccloud-dockerhub-mirror/pulumi/pulumi-python:3.2.0
@@ -37,4 +35,3 @@ RUN apt update && \
 # COPY test/etc ${workdir}/etc
 COPY projects/vcf ${workdir}/projects/vcf
 COPY --from=build /src/automation /pulumi/bin/automation
-
