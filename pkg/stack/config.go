@@ -74,15 +74,16 @@ func ReadConfig(configFilePath string) (*Config, error) {
 	if err = yaml.Unmarshal(b, &c); err != nil {
 		return nil, err
 	}
+	if err := c.validate(); err != nil {
+		err = fmt.Errorf("%s: %v", configFilePath, err)
+		return nil, err
+	}
 	for _, fname := range c.DependsOn {
 		dc, err := ReadConfig(path.Join(path.Dir(configFilePath), fname))
 		if err != nil {
 			return nil, err
 		}
 		c.baseStackProps = append(c.baseStackProps, dc.Props.StackProps)
-	}
-	if err := c.validate(); err != nil {
-		return nil, err
 	}
 	return &c, nil
 }
@@ -97,7 +98,7 @@ func (c *Config) GetProjectStackName() (projectType, stackName string) {
 
 func (c *Config) validate() error {
 	if c.ProjectType == "" {
-		return fmt.Errorf("project not set")
+		return fmt.Errorf("projectType not set")
 	}
 	if c.StackName == "" {
 		return fmt.Errorf("stack not set")
