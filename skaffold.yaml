@@ -25,10 +25,8 @@ profiles:
       artifacts:
         - image: keppel.eu-de-1.cloud.sap/ccloud/vcf-automation
           sync:
-            manual:
-              - src: "bin/automation_linux_amd64"
-                dest: "../bin"
-                strip: "bin/"
+            infer:
+              - "projects/**/*.py"
     deploy:
       kubectl:
         manifests:
