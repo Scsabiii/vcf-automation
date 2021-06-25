@@ -37,8 +37,10 @@ var serveCmd = &cobra.Command{
 }
 
 func init() {
-	viper.AutomaticEnv()
 	viper.SetEnvPrefix("automation")
+	viper.SetDefault("port", 8080)
+	viper.AutomaticEnv()
+
 	rootCmd.AddCommand(serveCmd)
-	serveCmd.Flags().IntVarP(&port, "port", "p", 8080, "server port")
+	serveCmd.Flags().IntVarP(&port, "port", "p", viper.GetInt("port"), "server port")
 }

@@ -21,7 +21,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -53,10 +52,6 @@ func init() {
 
 	rootCmd.PersistentFlags().String("workdir", "", "work directory")
 	viper.BindPFlag("workdir", rootCmd.PersistentFlags().Lookup("workdir"))
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -69,20 +64,4 @@ func initConfig() {
 func logErrorAndExit(e error) {
 	fmt.Println("ERROR", e)
 	os.Exit(1)
-}
-
-func extractProjectStack(args []string) (project, stack string) {
-	projectStackNames := strings.Split(args[0], "/")
-	if len(projectStackNames) == 1 {
-		project = "esxi"
-		stack = projectStackNames[0]
-	} else if len(projectStackNames) == 2 {
-		project = projectStackNames[0]
-		stack = projectStackNames[1]
-	} else {
-		err := fmt.Errorf("arg must be of format [projectName/][stackName]")
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	return
 }
