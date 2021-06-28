@@ -37,24 +37,25 @@ type StackState struct {
 }
 
 type StackProps struct {
-	EsxiServerImage    string            `yaml:"esxiServerImage"`
-	EsxiServerFlavor   string            `yaml:"esxiServerFlavor"`
-	EsxiNodes          []EsxiNode        `yaml:"esxiNodes"`
-	Shares             []Share           `yaml:"shares"`
-	SDDCManager        SDDCManager       `yaml:"sddcManager"`
-	Nsxt               Nsxt              `yaml:"nsxt"`
-	NsxtManagers       []NsxtManager     `yaml:"nsxtManagers"`
-	VCenter            VCenter           `yaml:"vcenter"`
-	ExternalNetwork    ExternalNetwork   `yaml:"externalNetwork"`
-	ManagementNetwork  MgmtNetwork       `yaml:"managementNetwork"`
-	DeploymentNetwork  DeploymentNetwork `yaml:"deploymentNetwork"`
-	PrivateNetworks    []PrivateNetwork  `yaml:"privateNetworks"`
-	PublicRouter       string            `yaml:"publicRouter"`
-	DNSZoneName        string            `yaml:"dnsZoneName"`
-	ReverseDNSZoneName string            `yaml:"reverseDnsZoneName"`
-	HelperVM           HelperVM          `yaml:"helperVM"`
-	KeypairFile        KeypairFile       `yaml:"keypairFile"`
-	ReservedIPs        []ReservedIP      `yaml:"reservedIPs"`
+	EsxiServerImage    string             `yaml:"esxiServerImage"`
+	EsxiServerFlavor   string             `yaml:"esxiServerFlavor"`
+	EsxiNodes          []EsxiNode         `yaml:"esxiNodes"`
+	Shares             []Share            `yaml:"shares"`
+	SDDCManager        SDDCManager        `yaml:"sddcManager"`
+	Nsxt               Nsxt               `yaml:"nsxt"`
+	NsxtManagers       []NsxtManager      `yaml:"nsxtManagers"`
+	VCenter            VCenter            `yaml:"vcenter"`
+	ExternalNetwork    ExternalNetwork    `yaml:"externalNetwork"`
+	ManagementNetwork  MgmtNetwork        `yaml:"managementNetwork"`
+	DeploymentNetwork  DeploymentNetwork  `yaml:"deploymentNetwork"`
+	PrivateNetworks    []PrivateNetwork   `yaml:"privateNetworks"`
+	PublicRouter       string             `yaml:"publicRouter"`
+	DNSZoneName        string             `yaml:"dnsZoneName"`
+	ReverseDNSZoneName string             `yaml:"reverseDnsZoneName"`
+	HelperVM           HelperVM           `yaml:"helperVM"`
+	HelperVsanWiteness HelperVsanWiteness `yaml:"helperVsanWiteness"`
+	KeypairFile        KeypairFile        `yaml:"keypairFile"`
+	ReservedIPs        []ReservedIP       `yaml:"reservedIPs"`
 }
 
 type ExternalNetwork struct {
@@ -84,6 +85,13 @@ type HelperVM struct {
 	FlavorName string `yaml:"flavorName" json:"flavor_name,omitempty"`
 	ImageName  string `yaml:"imageName" json:"image_name,omitempty"`
 	IP         string `yaml:"ip" json:"ip,omitempty"`
+}
+
+type HelperVsanWiteness struct {
+	ImageName         string `yaml:"imageName" json:"image_name,omitempty"`
+	FlavorName        string `yaml:"flavorName" json:"flavor_name,omitempty"`
+	AvailablilityZone string `yaml:"availablilityZone" json:"availablility_zone,omitempty"`
+	IP                string `yaml:"ip" json:"ip,omitempty"`
 }
 
 type KeypairFile struct {
@@ -178,6 +186,13 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 			return err
 		} else {
 			s.SetConfig(ctx, "helperVM", auto.ConfigValue{Value: string(n)})
+		}
+	}
+	if (p.HelperVsanWiteness != HelperVsanWiteness{}) {
+		if n, err := json.Marshal(p.HelperVsanWiteness); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "helperVsanWiteness", auto.ConfigValue{Value: string(n)})
 		}
 	}
 	if p.DNSZoneName != "" {
