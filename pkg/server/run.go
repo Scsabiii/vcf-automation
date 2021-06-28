@@ -75,7 +75,7 @@ func Run(port int) {
 
 	s := &http.Server{
 		Handler:      r,
-		Addr:         fmt.Sprintf("localhost:%d", port),
+		Addr:         fmt.Sprintf("0.0.0.0:%d", port),
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
