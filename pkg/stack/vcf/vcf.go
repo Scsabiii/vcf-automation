@@ -273,10 +273,12 @@ func (s *Stack) Configure(ctx context.Context, props ...StackProps) error {
 			})
 		}
 	}
-	if n, err := json.Marshal(p.ReservedIPs); err != nil {
-		return err
-	} else {
-		s.SetConfig(ctx, "reservedIPs", auto.ConfigValue{Value: string(n)})
+	if len(p.ReservedIPs) > 0 {
+		if n, err := json.Marshal(p.ReservedIPs); err != nil {
+			return err
+		} else {
+			s.SetConfig(ctx, "reservedIPs", auto.ConfigValue{Value: string(n)})
+		}
 	}
 	return nil
 }
