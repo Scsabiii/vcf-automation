@@ -571,7 +571,7 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
         dns_zone = dns.get_dns_zone(name=self.props.dns_zone_name)
         reverse_dns_zone = dns.get_dns_zone(
             name=self.props.reverse_dns_zone_name,
-            opts=InvokeOptions(provider=self.provider_ccadmin_master),
+            # opts=InvokeOptions(provider=self.provider_ccadmin_master),
         )
         dns_name = dns_name + "." + self.props.dns_zone_name
         r = dns.RecordSet(
@@ -591,7 +591,7 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             ttl=1800,
             zone_id=reverse_dns_zone.id,
             opts=ResourceOptions(
-                provider=self.provider_ccadmin_master,
+                # provider=self.provider_ccadmin_master,
                 delete_before_replace=True,
                 depends_on=[r],
             ),
