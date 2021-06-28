@@ -88,10 +88,10 @@ type HelperVM struct {
 }
 
 type HelperVsanWiteness struct {
-	ImageName         string `yaml:"imageName" json:"image_name,omitempty"`
-	FlavorName        string `yaml:"flavorName" json:"flavor_name,omitempty"`
-	AvailablilityZone string `yaml:"availablilityZone" json:"availablility_zone,omitempty"`
-	IP                string `yaml:"ip" json:"ip,omitempty"`
+	ImageName        string `yaml:"imageName" json:"image_name,omitempty"`
+	FlavorName       string `yaml:"flavorName" json:"flavor_name,omitempty"`
+	AvailabilityZone string `yaml:"availabilityZone" json:"availability_zone,omitempty"`
+	IP               string `yaml:"ip" json:"ip,omitempty"`
 }
 
 type KeypairFile struct {
