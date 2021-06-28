@@ -17,6 +17,7 @@ class ManagementStack(VCFStack):
 
         self._provision_private_router()
         self._provision_private_networks()
+        self._provision_vsanwiteness_helper()
         self._provision_reserved_names()
         self._provision_esxi_dns_recrods()
         self._provision_shares()

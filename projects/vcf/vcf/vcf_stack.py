@@ -79,9 +79,14 @@ class VCFStack:
             nsxt_managers = json.loads(self.config.require("nsxtManagers"))
         except ConfigMissingError:
             nsxt_managers = []
+        try:
+            helper_vsanwitness = json.loads(self.config.require("helperVsanWiteness"))
+        except ConfigMissingError:
+            helper_vsanwitness = None
 
         self.props = SimpleNamespace(
             helper_vm=json.loads(self.config.require("helperVM")),
+            helper_vsanwitness=helper_vsanwitness,
             public_key_file=public_key_file,
             private_key_file=private_key_file,
             nsxt=nsxt,
@@ -316,6 +321,25 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
                 opts=ResourceOptions(depends_on=[copy_cleanup_sh]),
             )
         return copy_config_sh
+
+    def _provision_vsanwiteness_helper(self):
+        props = self.props.helper_vsanwitness
+        compute.Instance(
+            "helper-vsanwitness",
+            name="helper-vsanwitness",
+            flavor_name=props["flavor_name"],
+            image_name=props["image_name"],
+            availability_zone=props["availability_zone"],
+            networks=[
+                compute.InstanceNetworkArgs(name=self.resources.deploy_network.name),
+                compute.InstanceNetworkArgs(name=self.resources.private_networks["vsanwitness"]["network"].name),
+            ],
+            key_pair=self.resources.keypair.name,
+            opts=ResourceOptions(
+                delete_before_replace=True,
+                ignore_changes=["image_name", "key_pair"],
+            ),
+        )
 
     @resources_cache("private_router")
     def _provision_private_router(self):
