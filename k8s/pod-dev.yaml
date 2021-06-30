@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vcf-automation-dev
+  labels:
+    app: vcf-automation
+spec:
+  containers:
+    - name: automation
+      image: keppel.eu-de-1.cloud.sap/ccloud/vcf-automation
+      command:
+        - "/pulumi/bin/automation"
+        - "server"
+      env:
+        - name: AUTOMATION_PORT
+          value: "8080"
+        - name: AUTOMATION_OS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ccmaas-pass
+              key: os_password
+        - name: AUTOMATION_OS_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: ccmaas-pass
+              key: os_username
+        - name: AUTOMATION_WORK_DIR
+          value: /pulumi/automation
+        - name: AUTOMATION_PROJECT_ROOT
+          value: /pulumi/automation/projects
+        - name: AUTOMATION_CONFIG_DIR
+          value: /pulumi/automation/etc
+        - name: PULUMI_BACKEND_URL
+          value: file:///pulumi/automation/etc
+        - name: PULUMI_CONFIG_PASSPHRASE
+          value: pass4config
+      volumeMounts:
+        - mountPath: /pulumi/automation/etc
+          subPath: etc
+          name: oldpvc
+      ports:
+        - containerPort: 8080
+  volumes:
+    - name: oldpvc
+      persistentVolumeClaim:
+        claimName: ccmaas-workspace

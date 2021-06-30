@@ -3,9 +3,7 @@ kind: Config
 metadata:
   name: automation
 profiles:
-  - name: eu-de-1
-    activation:
-      - kubeContext: eu-de-1
+  - name: debug
     build:
       artifacts:
         - image: keppel.eu-de-1.cloud.sap/ccloud/vcf-automation
@@ -14,13 +12,9 @@ profiles:
     deploy:
       kubectl:
         manifests:
-          - k8s/deployment-eu-de-1.yaml
-          - k8s/service.yaml
-          - k8s/ingress-eu-de-1.yaml
+          - k8s/pod-debug.yaml
         defaultNamespace: vcf
-  - name: qa-de-1
-    activation:
-      - kubeContext: qa-de-1
+  - name: dev
     build:
       artifacts:
         - image: keppel.eu-de-1.cloud.sap/ccloud/vcf-automation
@@ -30,7 +24,5 @@ profiles:
     deploy:
       kubectl:
         manifests:
-          - k8s/pod-test.yaml
-          - k8s/service-test.yaml
-          - k8s/ingress-test.yaml
+          - k8s/pod-dev.yaml
         defaultNamespace: ccmaas
