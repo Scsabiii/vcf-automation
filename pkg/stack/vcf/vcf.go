@@ -119,8 +119,9 @@ type ReservedIP struct {
 }
 
 type Share struct {
-	ShareName string `yaml:"shareName" json:"share_name,omitempty"`
-	ShareSize int    `yaml:"shareSize" json:"share_size,omitempty"`
+	ShareName        string `yaml:"shareName" json:"share_name,omitempty"`
+	ShareSize        int    `yaml:"shareSize" json:"share_size,omitempty"`
+	AvailabilityZone string `yaml:"availabilityZone" json:"availability_zone,omitempty"`
 }
 
 type SDDCManager struct {

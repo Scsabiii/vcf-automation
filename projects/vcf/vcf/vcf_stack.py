@@ -332,7 +332,9 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             availability_zone=props["availability_zone"],
             networks=[
                 compute.InstanceNetworkArgs(name=self.resources.deploy_network.name),
-                compute.InstanceNetworkArgs(name=self.resources.private_networks["vsanwitness"]["network"].name),
+                compute.InstanceNetworkArgs(
+                    name=self.resources.private_networks["vsanwitness"]["network"].name
+                ),
             ],
             key_pair=self.resources.keypair.name,
             opts=ResourceOptions(
@@ -655,13 +657,18 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
             neutron_subnet_id=nfs_subnet.id,
         )
         for ss in self.props.shares:
-            share_name, share_size = ss["share_name"], ss["share_size"]
+            share_name, share_size, az = (
+                ss["share_name"],
+                ss["share_size"],
+                ss["availability_zone"],
+            )
             sharedfilesystem.Share(
                 share_name,
                 name=share_name,
                 share_network_id=share_network.id,
                 share_proto="NFS",
                 size=share_size,
+                availability_zone=az,
             )
 
     def _gen_cloud_builder_json(self):
