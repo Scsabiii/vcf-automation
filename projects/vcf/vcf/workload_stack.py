@@ -31,6 +31,5 @@ class WorkloadStack(VCFStack):
         self._provision_shares()
 
         self._provision_esxi_servers()
-        self._gen_cloud_builder_json()
         for s in self.resources.esxi_servers:
             self._configure_esxi_server(s)
