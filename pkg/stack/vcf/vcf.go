@@ -110,6 +110,7 @@ type EsxiNode struct {
 	Name      string `yaml:"name" json:"name,omitempty"`
 	ID        string `yaml:"id" json:"id,omitempty"`
 	IP        string `yaml:"ip" json:"ip,omitempty"`
+	Flavor    string `yaml:"flavor" json:"flavor,omitempty"`
 	ImageName string `yaml:"imageName" json:"image_name,omitempty"`
 }
 

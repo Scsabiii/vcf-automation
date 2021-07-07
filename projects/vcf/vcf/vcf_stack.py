@@ -384,6 +384,11 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
 
         for n in self.props.esxi_nodes:
 
+            if "flavor" in n.keys():
+                node_flavor = n["flavor"]
+            else:
+                node_flavor = self.props.esxi_flavor_name
+
             node_name, node_id, node_ip = n["name"], n["id"], n["ip"]
 
             parent_port = networking.Port(
@@ -395,7 +400,7 @@ echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf
                 "esxi-" + node_name,
                 name="esxi-" + node_name,
                 availability_zone_hints=f"::{node_id}",
-                flavor_name=self.props.esxi_flavor_name,
+                flavor_name=node_flavor,
                 image_name=self.props.esxi_image,
                 networks=[compute.InstanceNetworkArgs(port=parent_port.id)],
                 key_pair=self.resources.keypair.name,
